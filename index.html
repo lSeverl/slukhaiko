@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Слухайко</title>
+<meta name="description" content="Слухайко — плеєр для аудіокниг з Telegram">
+<meta name="theme-color" content="#1F6F5C">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/favicon-64.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Слухайко">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,700&family=Manrope:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one narrow column — "now playing" deck on top, the shelf (playlist) below. */
+:root{
+  --bg:#EEF1EE; --surface:#FFFFFF; --sunk:#E3E8E4; --fg:#18211D; --muted:#5E6B64;
+  --accent:#1F6F5C; --accent-fg:#FFFFFF; --mark:#D99A2B; --danger:#B23A35; --line:#D3DBD5;
+  --display:"Literata",Georgia,"Times New Roman",serif;
+  --body:"Manrope",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --r:14px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111715; --surface:#1A2320; --sunk:#232E2A; --fg:#E7EDE9; --muted:#9AA9A1;
+  --accent:#4FB79A; --accent-fg:#0D1512; --mark:#E8B04A; --danger:#E06A62; --line:#2C3833; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111715; --surface:#1A2320; --sunk:#232E2A; --fg:#E7EDE9; --muted:#9AA9A1;
+  --accent:#4FB79A; --accent-fg:#0D1512; --mark:#E8B04A; --danger:#E06A62; --line:#2C3833; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45;padding:16px;padding-block:12px 40px;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font-family:var(--display);font-weight:700;font-size:1.7rem;margin:0;letter-spacing:-.01em}
+h2{font-family:var(--display);font-weight:500;font-size:1.2rem;margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.82rem}
+button,select,label.btn{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--mark);outline-offset:2px}
+
+/* Now playing */
+.deck{background:var(--surface);border-radius:var(--r);padding:18px;display:flex;flex-direction:column;gap:14px;box-shadow:0 1px 0 var(--line),0 8px 24px -16px rgba(0,0,0,.25)}
+.eyebrow{font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.now-title{font-family:var(--display);font-size:1.25rem;font-weight:500;margin:2px 0 0;overflow-wrap:anywhere;text-wrap:balance}
+input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
+.times{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:-6px}
+.controls{display:flex;align-items:center;justify-content:center;gap:14px}
+.ic{background:var(--sunk);border:0;border-radius:50%;width:52px;height:52px;display:grid;place-items:center;position:relative;flex:none}
+.ic svg{width:24px;height:24px;fill:var(--fg)}
+.ic .n{position:absolute;left:50%;top:50%;transform:translate(-50%,-28%);font-size:.55rem;font-weight:800;line-height:1}
+.ic.sm{width:42px;height:42px;background:transparent}
+.ic.sm svg{width:22px;height:22px}
+.play{width:72px;height:72px;background:var(--accent)}
+.play svg{width:32px;height:32px;fill:var(--accent-fg)}
+.ic:disabled{opacity:.35;cursor:default}
+
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.speed{display:flex;align-items:center;gap:8px;background:var(--sunk);border-radius:999px;padding:4px}
+.speed button{border:0;background:var(--surface);width:38px;height:38px;border-radius:50%;font-size:1.3rem;font-weight:600;line-height:1}
+.speed output{min-width:62px;text-align:center;font-weight:700;font-size:1.1rem;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 11px;font-size:.88rem;font-weight:600;font-variant-numeric:tabular-nums}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.sleep{display:flex;align-items:center;gap:8px;font-size:.9rem}
+.sleep select{background:var(--sunk);border:0;border-radius:10px;padding:7px 10px}
+.sleep .left{color:var(--mark);font-weight:700;font-variant-numeric:tabular-nums}
+
+/* Shelf */
+.shelf-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+label.btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:var(--accent-fg);font-weight:700;border-radius:999px;padding:10px 18px;cursor:pointer}
+label.btn svg{width:18px;height:18px;fill:currentColor}
+#file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border-radius:12px;padding:12px 10px 12px 14px;display:flex;gap:10px;align-items:center;border:2px solid transparent}
+.item.cur{border-color:var(--accent)}
+.item .main{flex:1;min-width:0;cursor:pointer;display:flex;flex-direction:column;gap:6px;background:none;border:0;padding:0;text-align:left}
+.item .name{font-weight:600;overflow-wrap:anywhere;line-height:1.3}
+.item .meta{font-size:.8rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.bar{height:4px;background:var(--sunk);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--mark)}
+.item.done .bar i{background:var(--accent)}
+.tools{display:flex;gap:2px;flex:none}
+.tools button{border:0;background:transparent;width:34px;height:34px;border-radius:8px;display:grid;place-items:center;color:var(--muted)}
+.tools button svg{width:18px;height:18px;fill:currentColor}
+.tools button:disabled{opacity:.25}
+.tools .del.arm{width:auto;padding:0 10px;background:var(--danger);color:#fff;font-size:.8rem;font-weight:700}
+.empty{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted)}
+details{background:var(--surface);border-radius:12px;padding:12px 14px}
+summary{font-weight:700;cursor:pointer}
+details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+.note{font-size:.85rem;color:var(--muted)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:calc(100% - 32px)}
+.busy{font-size:.85rem;color:var(--mark);font-weight:600}
+@media (prefers-reduced-motion:no-preference){.bar i{transition:width .4s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Слухайко</h1>
+    <span class="muted small" id="storage"></span>
+  </header>
+
+  <section class="deck" aria-label="Зараз грає">
+    <div>
+      <div class="eyebrow" id="nowLabel">Нічого не вибрано</div>
+      <p class="now-title" id="nowTitle">Додайте аудіокнигу з Telegram</p>
+    </div>
+    <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Позиція" disabled>
+    <div class="times"><span id="tCur">0:00</span><span id="tLeft">−0:00</span></div>
+    <div class="controls">
+      <button class="ic sm" id="prev" aria-label="Попередній файл" disabled><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button class="ic" id="back" aria-label="Назад на 15 секунд" disabled><svg viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg><span class="n">15</span></button>
+      <button class="ic play" id="play" aria-label="Відтворити" disabled><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+      <button class="ic" id="fwd" aria-label="Вперед на 30 секунд" disabled><svg viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7a6 6 0 1 0 6 6h2a8 8 0 1 1-8-8z"/></svg><span class="n">30</span></button>
+      <button class="ic sm" id="next" aria-label="Наступний файл" disabled><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+    <div class="row" style="justify-content:space-between">
+      <div class="speed" role="group" aria-label="Швидкість">
+        <button id="slower" aria-label="Повільніше">−</button>
+        <output id="rateOut">1.00×</output>
+        <button id="faster" aria-label="Швидше">+</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="sleep">
+      <label for="sleepSel">Таймер сну</label>
+      <select id="sleepSel">
+        <option value="0">вимк.</option>
+        <option value="15">15 хв</option>
+        <option value="30">30 хв</option>
+        <option value="45">45 хв</option>
+        <option value="60">60 хв</option>
+        <option value="end">до кінця файлу</option>
+      </select>
+      <span class="left" id="sleepLeft"></span>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:10px" aria-label="Плейлист">
+    <div class="shelf-head">
+      <h2>Плейлист</h2>
+      <label class="btn" for="file"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>Додати файли</label>
+      <input type="file" id="file" accept="audio/*,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac" multiple>
+    </div>
+    <span class="busy" id="busy" hidden></span>
+    <ol class="list" id="list"></ol>
+    <div class="empty" id="empty">
+      Тут з'являться книги. Можна вибрати одразу кілька файлів — вони стануть у чергу за назвою (Частина 1, 2, 3…).
+    </div>
+  </section>
+
+  <details id="help">
+    <summary>Як додати аудіокнигу з Telegram</summary>
+    <ol>
+      <li><b>iPhone:</b> у Telegram торкніться аудіофайлу й утримуйте (або «⋯») → <b>Поділитися</b> → <b>Зберегти у Файли</b>. Можна виділити одразу кілька повідомлень.</li>
+      <li><b>Android:</b> у Telegram «⋮» біля файлу → <b>Зберегти в завантаження</b> (файли лягають у папку <i>Download/Telegram</i>).</li>
+      <li>Тут натисніть <b>Додати файли</b> і виберіть збережені файли. Можна кілька за раз.</li>
+      <li>Після додавання файли зберігаються в самому плеєрі, тож з Файлів/Завантажень їх можна видалити, щоб не займали місце двічі.</li>
+    </ol>
+    <p class="note">Плеєр запам'ятовує, де ви зупинилися в кожному файлі, і вибрану швидкість. Коли файл закінчується, сам вмикається наступний.</p>
+  </details>
+</div>
+<div class="toast" id="toast" hidden></div>
+<audio id="audio" preload="metadata"></audio>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const audio = $('audio');
+  const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
+  const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
+  const ico = {
+    up:'<svg viewBox="0 0 24 24"><path d="M12 6l-6 6 1.4 1.4L11 9.8V19h2V9.8l3.6 3.6L18 12z"/></svg>',
+    down:'<svg viewBox="0 0 24 24"><path d="M12 18l6-6-1.4-1.4L13 14.2V5h-2v9.2l-3.6-3.6L6 12z"/></svg>',
+    del:'<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>'
+  };
+
+  // ---------- storage ----------
+  const ls = {
+    get(k, d){ try{ const v = localStorage.getItem('slukh.'+k); return v===null?d:JSON.parse(v);}catch(e){return d;} },
+    set(k, v){ try{ localStorage.setItem('slukh.'+k, JSON.stringify(v)); }catch(e){} }
+  };
+  let db = null, memFiles = new Map(), memMeta = new Map();
+  function openDB(){
+    return new Promise(res => {
+      try{
+        const r = indexedDB.open('slukhayko', 1);
+        r.onupgradeneeded = () => { const d = r.result; d.createObjectStore('files'); d.createObjectStore('meta', {keyPath:'id'}); };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => res(null);
+        r.onblocked = () => res(null);
+      }catch(e){ res(null); }
+    });
+  }
+  function tx(store, mode, fn){
+    return new Promise((res, rej) => {
+      const t = db.transaction(store, mode); const s = t.objectStore(store);
+      let out; const r = fn(s); if (r) r.onsuccess = () => { out = r.result; };
+      t.oncomplete = () => res(out); t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  }
+  const store = {
+    async allMeta(){ if(!db) return [...memMeta.values()]; return (await tx('meta','readonly',s=>s.getAll()))||[]; },
+    async putMeta(m){ if(!db){ memMeta.set(m.id,m); return;} try{ await tx('meta','readwrite',s=>s.put(m)); }catch(e){} },
+    async putFile(id, blob){
+      if(!db){ memFiles.set(id, blob); return; }
+      try{ await tx('files','readwrite',s=>s.put(blob,id)); }
+      catch(e){ // older Safari: store raw bytes instead of Blob
+        const buf = await blob.arrayBuffer();
+        await tx('files','readwrite',s=>s.put({buf, type:blob.type},id));
+      }
+    },
+    async getFile(id){
+      if(!db) return memFiles.get(id);
+      const v = await tx('files','readonly',s=>s.get(id));
+      if (v && v.buf) return new Blob([v.buf], {type:v.type||'audio/mpeg'});
+      return v;
+    },
+    async remove(id){
+      if(!db){ memFiles.delete(id); memMeta.delete(id); return; }
+      await tx('files','readwrite',s=>s.delete(id)); await tx('meta','readwrite',s=>s.delete(id));
+    }
+  };
+
+  // ---------- state ----------
+  let items = [];           // meta objects sorted by order
+  let curId = null, curUrl = null, pendingSeek = null;
+  let rate = clampRate(ls.get('rate', 1));
+  let lastSave = 0;
+
+  function clampRate(r){ r = Math.round(Number(r)/STEP)*STEP; return Math.min(RATES_MAX, Math.max(RATES_MIN, r||1)); }
+  const cur = () => items.find(i => i.id === curId);
+  const idx = () => items.findIndex(i => i.id === curId);
+
+  // ---------- formatting ----------
+  function fmt(sec){
+    if(!isFinite(sec) || sec < 0) sec = 0; sec = Math.floor(sec);
+    const h = Math.floor(sec/3600), m = Math.floor(sec%3600/60), s = sec%60;
+    return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}` : `${m}:${String(s).padStart(2,'0')}`;
+  }
+  function human(sec){
+    sec = Math.max(0, Math.round(sec/60));
+    const h = Math.floor(sec/60), m = sec%60;
+    return h ? `${h} год ${m} хв` : `${m} хв`;
+  }
+  const mb = b => (b/1048576).toFixed(b > 104857600 ? 0 : 1) + ' МБ';
+  const cleanName = n => n.replace(/\.(mp3|m4a|m4b|aac|ogg|opus|wav|flac|mp4)$/i,'').replace(/[_]+/g,' ').trim();
+
+  let toastT;
+  function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 2800); }
+
+  // ---------- render ----------
+  function renderList(){
+    const list = $('list'); list.innerHTML = '';
+    $('empty').hidden = items.length > 0;
+    items.forEach((it, i) => {
+      const li = document.createElement('li');
+      li.className = 'item' + (it.id===curId?' cur':'') + (it.done?' done':'');
+      const pct = it.done ? 100 : (it.duration ? Math.min(100, it.pos/it.duration*100) : 0);
+      let meta;
+      if (it.done) meta = 'Прослухано' + (it.duration ? ' · ' + human(it.duration) : '');
+      else if (it.duration) meta = (it.pos > 5 ? `Залишилось ${human((it.duration-it.pos)/rate)}` : human(it.duration/rate)) + (rate!==1?` при ${rate}×`:'') + ` · ${Math.round(pct)}%`;
+      else meta = mb(it.size);
+      li.innerHTML = `<button class="main" aria-label="Слухати"><span class="name"></span><span class="bar"><i style="width:${pct}%"></i></span><span class="meta">${meta}</span></button>
+        <span class="tools">
+          <button class="up" aria-label="Вище" ${i===0?'disabled':''}>${ico.up}</button>
+          <button class="down" aria-label="Нижче" ${i===items.length-1?'disabled':''}>${ico.down}</button>
+          <button class="del" aria-label="Видалити">${ico.del}</button>
+        </span>`;
+      li.querySelector('.name').textContent = it.name;
+      li.querySelector('.main').onclick = () => { if (it.id===curId) togglePlay(); else select(it.id, true); };
+      li.querySelector('.up').onclick = () => move(i, -1);
+      li.querySelector('.down').onclick = () => move(i, 1);
+      const del = li.querySelector('.del');
+      del.onclick = () => {
+        if (del.classList.contains('arm')) { removeItem(it.id); return; }
+        del.classList.add('arm'); del.textContent = 'Видалити?';
+        setTimeout(() => { if (del.isConnected){ del.classList.remove('arm'); del.innerHTML = ico.del; } }, 3000);
+      };
+      list.appendChild(li);
+    });
+  }
+
+  function renderNow(){
+    const it = cur(), has = !!it;
+    ['seek','play','back','fwd'].forEach(id => $(id).disabled = !has);
+    $('prev').disabled = !has || idx() <= 0;
+    $('next').disabled = !has || idx() >= items.length-1;
+    $('nowLabel').textContent = has ? `Файл ${idx()+1} з ${items.length}` : 'Нічого не вибрано';
+    $('nowTitle').textContent = has ? it.name : (items.length ? 'Виберіть файл у плейлисті' : 'Додайте аудіокнигу з Telegram');
+    updateTime();
+  }
+
+  function updateTime(){
+    const d = audio.duration, t = audio.currentTime;
+    if (isFinite(d) && d > 0){
+      if (!seeking) $('seek').value = Math.round(t/d*1000);
+      $('tCur').textContent = fmt(t);
+      $('tLeft').textContent = '−' + fmt((d-t)/rate);
+    } else if (cur()) {
+      const it = cur(); $('tCur').textContent = fmt(it.pos||0); $('tLeft').textContent = it.duration ? '−'+fmt((it.duration-it.pos)/rate) : '';
+      $('seek').value = it.duration ? Math.round((it.pos||0)/it.duration*1000) : 0;
+    } else { $('tCur').textContent='0:00'; $('tLeft').textContent='−0:00'; $('seek').value=0; }
+  }
+
+  function renderRate(){
+    $('rateOut').textContent = rate.toFixed(2) + '×';
+    $('slower').disabled = rate <= RATES_MIN; $('faster').disabled = rate >= RATES_MAX;
+    document.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.r)===rate)));
+  }
+
+  function setPlayIcon(){
+    const p = !audio.paused;
+    $('playIcon').innerHTML = p ? PAUSE : PLAY;
+    $('play').setAttribute('aria-label', p ? 'Пауза' : 'Відтворити');
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = p ? 'playing' : 'paused';
+  }
+
+  // ---------- playback ----------
+  async function select(id, autoplay){
+    saveNow();
+    const it = items.find(i => i.id===id); if(!it) return;
+    let blob;
+    try{ blob = await store.getFile(id); }catch(e){}
+    if(!blob){ toast('Не вдалося прочитати файл. Видаліть і додайте його ще раз.'); return; }
+    if (curUrl) URL.revokeObjectURL(curUrl);
+    curUrl = URL.createObjectURL(blob);
+    curId = id; ls.set('cur', id);
+    if (it.done){ it.done = false; it.pos = 0; store.putMeta(it); }
+    pendingSeek = Math.max(0, (it.pos||0) - 2);   // rewind 2 s for context
+    audio.src = curUrl;
+    audio.defaultPlaybackRate = rate; audio.playbackRate = rate;
+    audio.load();
+    renderList(); renderNow(); setMediaMeta();
+    if (autoplay) play();
+  }
+
+  function play(){
+    if(!cur()) return;
+    audio.playbackRate = rate;
+    const p = audio.play(); if (p && p.catch) p.catch(()=>{});
+  }
+  function togglePlay(){ if(!cur()) return; audio.paused ? play() : audio.pause(); }
+  function skip(sec){
+    if(!cur()) return;
+    const d = audio.duration || Infinity;
+    audio.currentTime = Math.min(Math.max(0, audio.currentTime + sec), d - 0.5);
+    updateTime();
+  }
+  function goto(delta){ const i = idx()+delta; if (items[i]) select(items[i].id, !audio.paused || delta>0); }
+
+  function setRate(r){
+    rate = clampRate(r); ls.set('rate', rate);
+    audio.defaultPlaybackRate = rate; audio.playbackRate = rate;
+    renderRate(); updateTime(); renderList();
+  }
+
+  function saveNow(){
+    const it = cur(); if(!it || !isFinite(audio.currentTime)) return;
+    if (pendingSeek !== null) return; // file hasn't loaded yet; keep stored position
+    it.pos = audio.currentTime;
+    if (isFinite(audio.duration)) it.duration = audio.duration;
+    store.putMeta(it); lastSave = Date.now();
+  }
+
+  audio.addEventListener('loadedmetadata', () => {
+    const it = cur();
+    if (it && isFinite(audio.duration)) { it.duration = audio.duration; }
+    if (pendingSeek !== null){
+      const d = audio.duration;
+      audio.currentTime = isFinite(d) ? Math.min(pendingSeek, Math.max(0, d-1)) : pendingSeek;
+      pendingSeek = null;
+    }
+    audio.playbackRate = rate;
+    updateTime(); renderList();
+  });
+  audio.addEventListener('play', () => { audio.playbackRate = rate; setPlayIcon(); });
+  audio.addEventListener('playing', () => { audio.playbackRate = rate; });
+  audio.addEventListener('pause', () => { setPlayIcon(); saveNow(); renderList(); });
+  audio.addEventListener('timeupdate', () => {
+    updateTime();
+    if (Date.now() - lastSave > 5000) { saveNow(); }
+    if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(audio.duration)){
+      try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:rate}); }catch(e){}
+    }
+  });
+  audio.addEventListener('ended', () => {
+    const it = cur(); if (it){ it.done = true; it.pos = 0; store.putMeta(it); }
+    if (sleepMode === 'end'){ clearSleep(); renderList(); return; }
+    const i = idx();
+    const nxt = items.slice(i+1).find(x => !x.done) || items[i+1];
+    if (nxt) select(nxt.id, true); else { renderList(); toast('Плейлист закінчився'); }
+  });
+  audio.addEventListener('error', () => { if (cur()) toast('Цей формат не відтворюється на цьому телефоні.'); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  window.addEventListener('pagehide', saveNow);
+
+  // seek slider
+  let seeking = false;
+  $('seek').addEventListener('input', () => {
+    seeking = true;
+    const d = audio.duration; if (isFinite(d)) { $('tCur').textContent = fmt($('seek').value/1000*d); }
+  });
+  $('seek').addEventListener('change', () => {
+    const d = audio.duration; if (isFinite(d)) audio.currentTime = $('seek').value/1000*d;
+    seeking = false; saveNow();
+  });
+
+  // ---------- media session (lock screen / headphones) ----------
+  function setMediaMeta(){
+    if (!('mediaSession' in navigator)) return;
+    const it = cur(); if(!it) return;
+    try{ navigator.mediaSession.metadata = new MediaMetadata({ title: it.name, artist: 'Слухайко', album: `Файл ${idx()+1} з ${items.length}` }); }catch(e){}
+  }
+  if ('mediaSession' in navigator){
+    const ms = navigator.mediaSession, h = (a,f)=>{ try{ ms.setActionHandler(a,f);}catch(e){} };
+    h('play', play); h('pause', () => audio.pause());
+    h('seekbackward', () => skip(-15)); h('seekforward', () => skip(30));
+    h('previoustrack', () => goto(-1)); h('nexttrack', () => goto(1));
+    h('seekto', e => { if (e.seekTime != null) { audio.currentTime = e.seekTime; updateTime(); } });
+  }
+
+  // ---------- sleep timer ----------
+  let sleepMode = '0', sleepEnd = 0, sleepTick = null;
+  function clearSleep(){ sleepMode='0'; $('sleepSel').value='0'; $('sleepLeft').textContent=''; clearInterval(sleepTick); }
+  $('sleepSel').addEventListener('change', e => {
+    clearInterval(sleepTick); sleepMode = e.target.value; $('sleepLeft').textContent = '';
+    if (sleepMode === '0' || sleepMode === 'end') { if (sleepMode==='end') $('sleepLeft').textContent='⏾'; return; }
+    sleepEnd = Date.now() + Number(sleepMode)*60000;
+    const tick = () => {
+      const left = sleepEnd - Date.now();
+      if (left <= 0){ audio.pause(); clearSleep(); toast('Таймер сну: пауза'); return; }
+      $('sleepLeft').textContent = fmt(left/1000);
+    };
+    tick(); sleepTick = setInterval(tick, 1000);
+  });
+
+  // ---------- playlist ops ----------
+  function persistOrder(){ items.forEach((it,i) => { if (it.order !== i){ it.order = i; store.putMeta(it); } }); }
+  function move(i, d){
+    const j = i+d; if (j<0 || j>=items.length) return;
+    [items[i], items[j]] = [items[j], items[i]]; persistOrder(); renderList(); renderNow();
+  }
+  async function removeItem(id){
+    if (id === curId){ audio.pause(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
+    try{ await store.remove(id); }catch(e){}
+    items = items.filter(i => i.id !== id); persistOrder();
+    renderList(); renderNow(); showStorage(); toast('Видалено');
+  }
+
+  function probeDuration(blob){
+    return new Promise(res => {
+      const a = new Audio(); const u = URL.createObjectURL(blob);
+      const done = v => { URL.revokeObjectURL(u); a.removeAttribute('src'); res(v); };
+      a.preload = 'metadata';
+      a.onloadedmetadata = () => done(isFinite(a.duration) ? a.duration : 0);
+      a.onerror = () => done(0);
+      setTimeout(() => done(0), 8000);
+      a.src = u;
+    });
+  }
+
+  $('file').addEventListener('change', async e => {
+    const files = [...e.target.files].sort((a,b) => a.name.localeCompare(b.name, 'uk', {numeric:true, sensitivity:'base'}));
+    e.target.value = '';
+    if (!files.length) return;
+    const busy = $('busy'); busy.hidden = false;
+    let added = 0;
+    for (const [k,f] of files.entries()){
+      busy.textContent = `Додаю ${k+1} з ${files.length}: ${f.name}`;
+      const id = Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+      try{
+        await store.putFile(id, f);
+        const m = { id, name: cleanName(f.name) || f.name, size: f.size, pos: 0, duration: 0, done: false, order: items.length, added: Date.now() };
+        await store.putMeta(m); items.push(m); added++;
+        renderList();
+        probeDuration(f).then(d => { if (d){ m.duration = d; store.putMeta(m); renderList(); } });
+      }catch(err){
+        toast('Не вистачає місця для «' + f.name + '». Видаліть прослухані книги.'); break;
+      }
+    }
+    busy.hidden = true;
+    if (added){ toast(`Додано: ${added}`); if (!curId) select(items[items.length-added].id, false); }
+    renderNow(); showStorage();
+  });
+
+  async function showStorage(){
+    try{
+      if (!navigator.storage || !navigator.storage.estimate) return;
+      const {usage} = await navigator.storage.estimate();
+      $('storage').textContent = usage > 1048576 ? 'Зайнято ' + mb(usage) : '';
+    }catch(e){}
+  }
+
+  // ---------- wiring ----------
+  $('play').onclick = togglePlay;
+  $('back').onclick = () => skip(-15);
+  $('fwd').onclick = () => skip(30);
+  $('prev').onclick = () => goto(-1);
+  $('next').onclick = () => goto(1);
+  $('slower').onclick = () => setRate(rate - STEP);
+  $('faster').onclick = () => setRate(rate + STEP);
+  [1, 1.25, 1.5, 2, 2.5, 3].forEach(r => {
+    const b = document.createElement('button'); b.className='chip'; b.dataset.r=r; b.textContent = r + '×';
+    b.onclick = () => setRate(r); $('chips').appendChild(b);
+  });
+
+  // ---------- boot ----------
+  (async () => {
+    renderRate(); renderList(); renderNow();
+    db = await openDB();
+    if (!db) toast('Браузер не дозволяє зберігати файли — вони зникнуть після закриття.');
+    try{ if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+    try{ items = (await store.allMeta()).sort((a,b) => a.order - b.order); }catch(e){ items = []; }
+    renderList();
+    const saved = ls.get('cur', null);
+    if (saved && items.some(i => i.id===saved)) await select(saved, false);
+    else if (items.length) await select((items.find(i=>!i.done)||items[0]).id, false);
+    renderNow(); showStorage();
+    if (!items.length) $('help').open = true;
+  })();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
