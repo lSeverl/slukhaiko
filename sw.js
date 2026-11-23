@@ -1,6 +1,6 @@
 // Слухайко — service worker: app works offline after the first visit.
 // Bump VERSION on every release so phones pick up the new files.
-const VERSION = 'v1';
+const VERSION = 'v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',

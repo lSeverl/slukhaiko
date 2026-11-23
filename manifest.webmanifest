@@ -3,6 +3,7 @@
   "short_name": "Слухайко",
   "description": "Плеєр для аудіокниг з Telegram: плейлист, продовження з місця зупинки, швидкість до 3×.",
   "lang": "uk",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

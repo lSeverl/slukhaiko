@@ -91,6 +91,8 @@ ol.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;ga
 .tools button svg{width:18px;height:18px;fill:currentColor}
 .tools button:disabled{opacity:.25}
 .tools .del.arm{width:auto;padding:0 10px;background:var(--danger);color:#fff;font-size:.8rem;font-weight:700}
+.chip.clear{margin-left:auto;color:var(--muted)}
+.chip.clear.arm{background:var(--danger);border-color:var(--danger);color:#fff}
 .empty{border:2px dashed var(--line);border-radius:12px;padding:22px;text-align:center;color:var(--muted)}
 details{background:var(--surface);border-radius:12px;padding:12px 14px}
 summary{font-weight:700;cursor:pointer}
@@ -98,6 +100,31 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
 .note{font-size:.85rem;color:var(--muted)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:.9rem;max-width:calc(100% - 32px)}
 .busy{font-size:.85rem;color:var(--mark);font-weight:600}
+
+/* Tags: cover, author line, description */
+.now-head{display:flex;gap:14px;align-items:center}
+.now-head>div{min-width:0;flex:1}
+.cover{width:76px;height:76px;border-radius:10px;object-fit:cover;flex:none;background:var(--sunk)}
+.now-sub{margin:4px 0 0;font-size:.88rem;color:var(--muted);overflow-wrap:anywhere}
+details.desc{background:var(--sunk);padding:10px 12px}
+details.desc summary{font-size:.9rem}
+details.desc p{margin:8px 0 0;font-size:.9rem;white-space:pre-line;max-height:40vh;overflow:auto;overflow-wrap:anywhere}
+.thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;align-self:flex-start}
+.item .sub{font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-4px}
+
+/* Drag to reorder */
+.tools .grip{touch-action:none;cursor:grab}
+.item.dragging{border-color:var(--mark);box-shadow:0 12px 28px -12px rgba(0,0,0,.45);position:relative;z-index:1}
+body.drag-on{-webkit-user-select:none;user-select:none}
+
+/* Playlist tools + install hint */
+.shelf-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.shelf-tools select{background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:.88rem;font-weight:600}
+.hint{background:var(--surface);border-radius:12px;padding:12px 12px 12px 14px;display:flex;gap:10px;align-items:flex-start;border-left:4px solid var(--accent)}
+.hint .txt{flex:1;display:flex;flex-direction:column;gap:10px;align-items:flex-start;font-size:.9rem}
+.hint .txt p{margin:0}
+.hint button.x{border:0;background:transparent;font-size:1.3rem;line-height:1;color:var(--muted);width:32px;height:32px;flex:none}
+.btn-solid{border:0;background:var(--accent);color:var(--accent-fg);font-weight:700;border-radius:999px;padding:9px 16px}
 @media (prefers-reduced-motion:no-preference){.bar i{transition:width .4s}}
 </style>
 </head>
@@ -109,11 +136,21 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     <span class="muted small" id="storage"></span>
   </header>
 
+  <div class="hint" id="installHint" hidden>
+    <div class="txt"><p id="installText"></p><button class="btn-solid" id="install" hidden>Встановити</button></div>
+    <button class="x" id="hintClose" aria-label="Закрити">×</button>
+  </div>
+
   <section class="deck" aria-label="Зараз грає">
-    <div>
-      <div class="eyebrow" id="nowLabel">Нічого не вибрано</div>
-      <p class="now-title" id="nowTitle">Додайте аудіокнигу з Telegram</p>
+    <div class="now-head">
+      <img class="cover" id="nowCover" alt="" hidden>
+      <div>
+        <div class="eyebrow" id="nowLabel">Нічого не вибрано</div>
+        <p class="now-title" id="nowTitle">Додайте аудіокнигу з Telegram</p>
+        <p class="now-sub" id="nowSub" hidden></p>
+      </div>
     </div>
+    <details class="desc" id="nowDesc" hidden><summary>Опис книги</summary><p id="nowDescText"></p></details>
     <input type="range" id="seek" min="0" max="1000" value="0" step="1" aria-label="Позиція" disabled>
     <div class="times"><span id="tCur">0:00</span><span id="tLeft">−0:00</span></div>
     <div class="controls">
@@ -151,6 +188,17 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
       <label class="btn" for="file"><svg viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>Додати файли</label>
       <input type="file" id="file" accept="audio/*,.mp3,.m4a,.m4b,.aac,.ogg,.opus,.wav,.flac" multiple>
     </div>
+    <div class="shelf-tools" id="shelfTools" hidden>
+      <select id="sortSel" aria-label="Сортувати плейлист">
+        <option value="">Сортувати…</option>
+        <option value="name">за назвою файлу</option>
+        <option value="series">за серією / книгою</option>
+        <option value="year">за роком видання</option>
+        <option value="artist">за автором</option>
+        <option value="added">як додавали</option>
+      </select>
+      <button class="chip clear" id="clearDone" hidden>Видалити прослухані</button>
+    </div>
     <span class="busy" id="busy" hidden></span>
     <ol class="list" id="list"></ol>
     <div class="empty" id="empty">
@@ -166,7 +214,8 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
       <li>Тут натисніть <b>Додати файли</b> і виберіть збережені файли. Можна кілька за раз.</li>
       <li>Після додавання файли зберігаються в самому плеєрі, тож з Файлів/Завантажень їх можна видалити, щоб не займали місце двічі.</li>
     </ol>
-    <p class="note">Плеєр запам'ятовує, де ви зупинилися в кожному файлі, і вибрану швидкість. Коли файл закінчується, сам вмикається наступний.</p>
+    <p class="note">Плеєр запам'ятовує, де ви зупинилися в кожному файлі, і вибрану швидкість. Коли файл закінчується, сам вмикається наступний. Порядок можна змінити, перетягнувши файл за ⠿. Назву, автора, рік, обкладинку й опис плеєр бере з тегів файлу, якщо вони там є.</p>
+    <p class="note"><b>Іконка на телефоні:</b> Android — «⋮» у Chrome → «Додати на головний екран» / «Встановити застосунок». iPhone — «Поділитися» в Safari → «На початковий екран» (файли в застосунку з іконки на iPhone доведеться додати заново).</p>
   </details>
 </div>
 <div class="toast" id="toast" hidden></div>
@@ -179,8 +228,7 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
   const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
   const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
   const ico = {
-    up:'<svg viewBox="0 0 24 24"><path d="M12 6l-6 6 1.4 1.4L11 9.8V19h2V9.8l3.6 3.6L18 12z"/></svg>',
-    down:'<svg viewBox="0 0 24 24"><path d="M12 18l6-6-1.4-1.4L13 14.2V5h-2v9.2l-3.6-3.6L6 12z"/></svg>',
+    grip:'<svg viewBox="0 0 24 24"><path d="M8 4h3v3H8zm5 0h3v3h-3zM8 10.5h3v3H8zm5 0h3v3h-3zM8 17h3v3H8zm5 0h3v3h-3z"/></svg>',
     del:'<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>'
   };
 
@@ -228,8 +276,175 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     async remove(id){
       if(!db){ memFiles.delete(id); memMeta.delete(id); return; }
       await tx('files','readwrite',s=>s.delete(id)); await tx('meta','readwrite',s=>s.delete(id));
-    }
+    },
+    async delFile(k){ if(!db){ memFiles.delete(k); return; } try{ await tx('files','readwrite',s=>s.delete(k)); }catch(e){} }
   };
+
+  // ---------- tags (ID3v2 / ID3v1 / MP4) ----------
+  // Optional meta fields filled from tags: title, artist, album, series, year, track, desc,
+  // cover (key of an image Blob in the `files` store, shared by files with the same picture), tags (=1 once read).
+  // Adding fields to meta values needs no IndexedDB version bump; old items are backfilled on boot.
+  const be32 = (u,i) => ((u[i]<<24)|(u[i+1]<<16)|(u[i+2]<<8)|u[i+3])>>>0;
+  const ss32 = (u,i) => (u[i]&127)<<21 | (u[i+1]&127)<<14 | (u[i+2]&127)<<7 | (u[i+3]&127);
+  const latin = (u,s,e) => { let r=''; for(let i=s;i<e && i<u.length;i++) r+=String.fromCharCode(u[i]); return r; };
+  const wide = enc => enc===1 || enc===2;
+  const clean = s => (s||'').replace(/\0+$/,'').split('\0').map(x=>x.trim()).filter(Boolean).join(', ');
+  function decText(u, enc){
+    try{
+      if (wide(enc)){
+        let le = enc===1;
+        if (u[0]===0xFE && u[1]===0xFF){ le=false; u=u.subarray(2); } else if (u[0]===0xFF && u[1]===0xFE){ le=true; u=u.subarray(2); }
+        return clean(new TextDecoder(le?'utf-16le':'utf-16be').decode(u));
+      }
+      if (enc===3 || !u.some(b=>b>=0x80)) return clean(new TextDecoder('utf-8').decode(u));
+      // "Latin-1" tags from UA/RU files are usually UTF-8 or cp1251 in disguise.
+      try{ return clean(new TextDecoder('utf-8',{fatal:true}).decode(u)); }
+      catch(e){ return clean(new TextDecoder('windows-1251').decode(u)); }
+    }catch(e){ return ''; }
+  }
+  function term(u, p, enc){
+    if (wide(enc)){ for(let i=p;i+1<u.length;i+=2) if(!u[i] && !u[i+1]) return i; return u.length; }
+    const i = u.indexOf(0, p); return i<0 ? u.length : i;
+  }
+  function unsync(u){ const o=[]; for(let i=0;i<u.length;i++){ o.push(u[i]); if(u[i]===0xFF && u[i+1]===0) i++; } return Uint8Array.from(o); }
+  const V22 = {TT1:'TIT1',TT2:'TIT2',TP1:'TPE1',TP2:'TPE2',TAL:'TALB',TYE:'TYER',TRK:'TRCK',COM:'COMM',TXX:'TXXX',PIC:'PIC'};
+
+  async function readID3(blob){
+    const h = new Uint8Array(await blob.slice(0,10).arrayBuffer());
+    if (latin(h,0,3)!=='ID3') return null;
+    const ver = h[3], flags = h[5], size = ss32(h,6);
+    if (ver < 2 || ver > 4) return null;
+    let u = new Uint8Array(await blob.slice(10, 10+size).arrayBuffer());
+    if ((flags & 0x80) && ver < 4) u = unsync(u);
+    let p = 0;
+    if (flags & 0x40) p = ver===3 ? 4 + be32(u,0) : ver===4 ? ss32(u,0) : 0;
+    const t = {x:{}, comm:''}, idLen = ver===2?3:4, hdr = ver===2?6:10;
+    while (p + hdr <= u.length){
+      const raw = latin(u,p,p+idLen); if (!/^[A-Z0-9]+$/.test(raw)) break;
+      const fs = ver===2 ? (u[p+3]<<16|u[p+4]<<8|u[p+5]) : ver===4 ? ss32(u,p+4) : be32(u,p+4);
+      const ff = ver===2 ? 0 : u[p+9];
+      let d = u.subarray(p+hdr, p+hdr+fs); p += hdr + fs;
+      if (ver===3){ if (ff & 0xC0) continue; if (ff & 0x20) d = d.subarray(1); }
+      if (ver===4){ if (ff & 0x0C) continue; if (ff & 0x40) d = d.subarray(1); if (ff & 0x02) d = unsync(d); if (ff & 0x01) d = d.subarray(4); }
+      if (d.length) id3Frame(t, ver===2 ? (V22[raw]||raw) : raw, d);
+    }
+    return t;
+  }
+  function id3Frame(t, id, d){
+    const enc = d[0];
+    if (id==='APIC' || id==='PIC'){
+      let mime, i;
+      if (id==='PIC'){ mime = latin(d,1,4); i = 4; } else { const e = d.indexOf(0,1); mime = latin(d,1,e<0?1:e); i = (e<0?1:e)+1; }
+      mime = mime.toLowerCase(); if (!mime.includes('/')) mime = 'image/'+mime; mime = mime.replace('/jpg','/jpeg');
+      const type = d[i]; i = term(d, i+1, enc) + (wide(enc)?2:1);
+      if (i < d.length && (!t.pic || (type===3 && t.picType!==3))){ t.pic = {type:mime, data:d.slice(i)}; t.picType = type; }
+    } else if (id==='COMM'){
+      const e = term(d, 4, enc), desc = decText(d.subarray(4,e), enc);
+      if (/^itun|^songs-db|^id3v1/i.test(desc)) return;
+      const txt = decText(d.subarray(e+(wide(enc)?2:1)), enc);
+      if (txt.length > t.comm.length) t.comm = txt;
+    } else if (id==='TXXX'){
+      const e = term(d, 1, enc), desc = decText(d.subarray(1,e), enc).toUpperCase();
+      t.x[desc] = decText(d.subarray(e+(wide(enc)?2:1)), enc);
+    } else if (id[0]==='T' || id==='MVNM'){
+      t[id] = decText(d.subarray(1), enc);
+    }
+  }
+  async function readID3v1(blob){
+    if (blob.size < 128) return null;
+    const u = new Uint8Array(await blob.slice(blob.size-128).arrayBuffer());
+    if (latin(u,0,3)!=='TAG') return null;
+    const s = (a,b) => decText(u.subarray(a,b), 0);
+    return {x:{}, comm:'', TIT2:s(3,33), TPE1:s(33,63), TALB:s(63,93), TYER:s(93,97)};
+  }
+  const yearOf = s => { const m = String(s||'').match(/(1[5-9]\d\d|20\d\d)/); return m ? +m[1] : 0; };
+  function fromID3(r){
+    const x = r.x;
+    const desc = [x.DESCRIPTION, x.SUMMARY, x.COMMENT, r.comm].filter(Boolean).sort((a,b)=>b.length-a.length)[0];
+    return { title:r.TIT2, artist:r.TPE1||r.TPE2, album:r.TALB, year:yearOf(r.TDRC||r.TYER||r.TORY||r.TDOR||x.YEAR),
+      series: x.SERIES || x['SERIES NAME'] || r.MVNM || r.TIT1, track: parseInt(r.TRCK)||0, desc, pic:r.pic };
+  }
+
+  function* boxes(u, s, e){
+    while (s + 8 <= e){
+      let size = be32(u,s), hs = 8; const type = latin(u,s+4,s+8);
+      if (size===1){ size = be32(u,s+8)*4294967296 + be32(u,s+12); hs = 16; } else if (size===0) size = e - s;
+      if (size < hs || s + size > e) return;
+      yield {type, s:s+hs, e:s+size}; s += size;
+    }
+  }
+  const child = (u, b, type) => { for (const c of boxes(u, b.s, b.e)) if (c.type===type) return c; };
+  async function readMP4(blob){
+    let off = 0, u = null;
+    for (let n = 0; n < 64 && off + 8 <= blob.size; n++){   // walk top-level boxes; moov may sit at the end
+      const h = new Uint8Array(await blob.slice(off, off+16).arrayBuffer());
+      let size = be32(h,0); const type = latin(h,4,8);
+      if (n===0 && type!=='ftyp') return null;
+      if (size===1) size = be32(h,8)*4294967296 + be32(h,12); else if (size===0) size = blob.size - off;
+      if (size < 8) return null;
+      if (type==='moov'){ if (size > 64*1048576) return null; u = new Uint8Array(await blob.slice(off, off+size).arrayBuffer()); break; }
+      off += size;
+    }
+    if (!u) return null;
+    const moov = {s:8, e:u.length};
+    const udta = child(u, moov, 'udta');
+    let meta = (udta && child(u, udta, 'meta')) || child(u, moov, 'meta'); if (!meta) return null;
+    if (latin(u, meta.s+4, meta.s+8) !== 'hdlr') meta = {s:meta.s+4, e:meta.e};   // full box: skip version/flags
+    const ilst = child(u, meta, 'ilst'); if (!ilst) return null;
+    const t = {}, td = new TextDecoder('utf-8');
+    for (const it of boxes(u, ilst.s, ilst.e)){
+      let key = it.type; const data = child(u, it, 'data'); if (!data) continue;
+      if (key==='----'){ const nm = child(u, it, 'name'); if (nm) key = '----:' + td.decode(u.subarray(nm.s+4, nm.e)).toUpperCase(); }
+      const kind = be32(u, data.s) & 0xFFFFFF, v = u.subarray(data.s+8, data.e);
+      if (key==='covr'){ if (!t.pic && v.length) t.pic = {type: kind===14?'image/png':'image/jpeg', data:v.slice()}; }
+      else if (key==='trkn'){ if (v.length >= 4) t.track = (v[2]<<8)|v[3]; }
+      else if (kind===1) t[key] = clean(td.decode(v));
+    }
+    return { title:t['©nam'], artist:t['©ART']||t['aART'], album:t['©alb'], year:yearOf(t['©day']),
+      series: t['----:SERIES'] || t['©mvn'] || t['©grp'], track:t.track||0,
+      desc: t['ldes'] || t['desc'] || t['©cmt'] || t['----:DESCRIPTION'], pic:t.pic };
+  }
+  async function parseTags(blob){
+    try{ const r = await readID3(blob); if (r) return fromID3(r); }catch(e){}
+    try{ const r = await readMP4(blob); if (r) return r; }catch(e){}
+    try{ const r = await readID3v1(blob); if (r) return fromID3(r); }catch(e){}
+    return {};
+  }
+
+  const coverUrls = new Map();   // cover key -> object URL
+  function hashBytes(u){ let h = 0x811c9dc5; for (let i=0;i<u.length;i++){ h ^= u[i]; h = Math.imul(h, 16777619); } return (h>>>0).toString(36) + u.length.toString(36); }
+  async function applyTags(it, blob){
+    const t = await parseTags(blob);
+    for (const k of ['title','artist','album','series','desc']) it[k] = String(t[k]||'').trim().slice(0, k==='desc' ? 5000 : 200);
+    it.year = t.year || 0; it.track = t.track || 0;
+    if (t.pic && t.pic.data.length > 200 && t.pic.data.length < 8*1048576){
+      const key = 'cv:' + hashBytes(t.pic.data);
+      if (!coverUrls.has(key)){
+        const img = new Blob([t.pic.data], {type:t.pic.type});
+        try{ await store.putFile(key, img); coverUrls.set(key, URL.createObjectURL(img)); }catch(e){}
+      }
+      if (coverUrls.has(key)) it.cover = key;
+    }
+    it.tags = 1;
+  }
+  async function loadCovers(){
+    for (const key of new Set(items.map(i => i.cover).filter(Boolean))){
+      if (coverUrls.has(key)) continue;
+      try{ const b = await store.getFile(key); if (b) coverUrls.set(key, URL.createObjectURL(b)); }catch(e){}
+    }
+  }
+  // Items added before tag support: read their tags once, in the background.
+  async function backfillTags(){
+    for (const it of items.filter(i => !i.tags)){
+      try{
+        const b = await store.getFile(it.id); if (!b) continue;
+        await applyTags(it, b); await store.putMeta(it);
+        renderList(); if (it.id===curId){ renderNow(); setMediaMeta(); }
+      }catch(e){}
+    }
+  }
+  const coverOf = it => it && it.cover ? coverUrls.get(it.cover) : null;
+  const subOf = it => [it.artist, it.album && it.album !== it.name ? it.album : '', it.year || ''].filter(Boolean).join(' · ');
 
   // ---------- state ----------
   let items = [];           // meta objects sorted by order
@@ -259,27 +474,50 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
   function toast(msg){ const t=$('toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(()=>t.hidden=true, 2800); }
 
   // ---------- render ----------
+  function itemView(it){
+    const pct = it.done ? 100 : (it.duration ? Math.min(100, it.pos/it.duration*100) : 0);
+    let meta;
+    if (it.done) meta = 'Прослухано' + (it.duration ? ' · ' + human(it.duration) : '');
+    else if (it.duration) meta = (it.pos > 5 ? `Залишилось ${human((it.duration-it.pos)/rate)}` : human(it.duration/rate)) + (rate!==1?` при ${rate}×`:'') + ` · ${Math.round(pct)}%`;
+    else meta = mb(it.size);
+    return {pct, meta};
+  }
+  // Cheap in-place update of one row (progress bar + meta) without rebuilding the list.
+  function refreshRow(it){
+    const li = $('list').querySelector(`li[data-id="${it.id}"]`); if (!li) return;
+    const {pct, meta} = itemView(it);
+    li.querySelector('.bar i').style.width = pct + '%';
+    li.querySelector('.meta').textContent = meta;
+  }
+
   function renderList(){
+    if (drag) return;   // finishDrag() re-renders
     const list = $('list'); list.innerHTML = '';
     $('empty').hidden = items.length > 0;
+    const doneCount = items.filter(i => i.done).length;
+    const cd = $('clearDone'); cd.hidden = !doneCount; cd.classList.remove('arm'); cd.textContent = 'Видалити прослухані';
+    $('sortSel').hidden = items.length < 2;
+    $('shelfTools').hidden = items.length < 2 && !doneCount;
     items.forEach((it, i) => {
       const li = document.createElement('li');
       li.className = 'item' + (it.id===curId?' cur':'') + (it.done?' done':'');
-      const pct = it.done ? 100 : (it.duration ? Math.min(100, it.pos/it.duration*100) : 0);
-      let meta;
-      if (it.done) meta = 'Прослухано' + (it.duration ? ' · ' + human(it.duration) : '');
-      else if (it.duration) meta = (it.pos > 5 ? `Залишилось ${human((it.duration-it.pos)/rate)}` : human(it.duration/rate)) + (rate!==1?` при ${rate}×`:'') + ` · ${Math.round(pct)}%`;
-      else meta = mb(it.size);
-      li.innerHTML = `<button class="main" aria-label="Слухати"><span class="name"></span><span class="bar"><i style="width:${pct}%"></i></span><span class="meta">${meta}</span></button>
+      li.dataset.id = it.id;
+      const {pct, meta} = itemView(it), cv = coverOf(it), sub = subOf(it);
+      li.innerHTML = `${cv ? '<img class="thumb" alt="">' : ''}<button class="main" aria-label="Слухати"><span class="name"></span>${sub ? '<span class="sub"></span>' : ''}<span class="bar"><i style="width:${pct}%"></i></span><span class="meta">${meta}</span></button>
         <span class="tools">
-          <button class="up" aria-label="Вище" ${i===0?'disabled':''}>${ico.up}</button>
-          <button class="down" aria-label="Нижче" ${i===items.length-1?'disabled':''}>${ico.down}</button>
+          <button class="grip" aria-label="Перетягніть, щоб змінити порядок (або стрілки ↑↓)">${ico.grip}</button>
           <button class="del" aria-label="Видалити">${ico.del}</button>
         </span>`;
       li.querySelector('.name').textContent = it.name;
+      if (cv) li.querySelector('.thumb').src = cv;
+      if (sub) li.querySelector('.sub').textContent = sub;
       li.querySelector('.main').onclick = () => { if (it.id===curId) togglePlay(); else select(it.id, true); };
-      li.querySelector('.up').onclick = () => move(i, -1);
-      li.querySelector('.down').onclick = () => move(i, 1);
+      const grip = li.querySelector('.grip');
+      grip.addEventListener('pointerdown', e => startDrag(e, li));
+      grip.addEventListener('keydown', e => {
+        const d = e.key==='ArrowUp' ? -1 : e.key==='ArrowDown' ? 1 : 0; if (!d) return;
+        e.preventDefault(); if (move(i, d)) $('list').children[i+d].querySelector('.grip').focus();
+      });
       const del = li.querySelector('.del');
       del.onclick = () => {
         if (del.classList.contains('arm')) { removeItem(it.id); return; }
@@ -297,6 +535,11 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     $('next').disabled = !has || idx() >= items.length-1;
     $('nowLabel').textContent = has ? `Файл ${idx()+1} з ${items.length}` : 'Нічого не вибрано';
     $('nowTitle').textContent = has ? it.name : (items.length ? 'Виберіть файл у плейлисті' : 'Додайте аудіокнигу з Telegram');
+    const cv = coverOf(it), sub = has ? subOf(it) : '';
+    $('nowCover').hidden = !cv; if (cv && $('nowCover').src !== cv) $('nowCover').src = cv;
+    $('nowSub').hidden = !sub; $('nowSub').textContent = sub;
+    const desc = has && it.desc && it.desc !== it.name ? it.desc : '';
+    $('nowDesc').hidden = !desc; $('nowDescText').textContent = desc;
     updateTime();
   }
 
@@ -337,6 +580,7 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     curId = id; ls.set('cur', id);
     if (it.done){ it.done = false; it.pos = 0; store.putMeta(it); }
     pendingSeek = Math.max(0, (it.pos||0) - 2);   // rewind 2 s for context
+    appPause = true; interrupted = false; playedSinceLoad = false;
     audio.src = curUrl;
     audio.defaultPlaybackRate = rate; audio.playbackRate = rate;
     audio.load();
@@ -346,17 +590,50 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
 
   function play(){
     if(!cur()) return;
+    // Resuming after a pause: reload the file first (see "interruptions" below).
+    if (audio.paused && !audio.ended && (interrupted || playedSinceLoad)){
+      reloadAudio(interrupted ? 3 : (Date.now() - pausedAt > 10000 ? 2 : 0)); return;
+    }
     audio.playbackRate = rate;
     const p = audio.play(); if (p && p.catch) p.catch(()=>{});
   }
-  function togglePlay(){ if(!cur()) return; audio.paused ? play() : audio.pause(); }
+  function pauseApp(){ appPause = true; audio.pause(); }
+  function togglePlay(){ if(!cur()) return; audio.paused ? play() : pauseApp(); }
+
+  // ---------- interruptions (air-raid alert apps, calls, navigation prompts) ----------
+  // When another app grabs audio focus, Chrome on Android pauses the element and resumes it later — and the
+  // resumed output sometimes stays silent while currentTime keeps running. Reloading the source revives it:
+  // - a pause we did not ask for marks the element as interrupted;
+  // - the system's auto-resume (a `play` event while interrupted) or the next tap on Play reloads the file
+  //   at the same spot, 3 s earlier. Every resume after a pause reloads too, so if the sound silently dies
+  //   with no events at all, pause → play brings it back.
+  let appPause = false, interrupted = false, reloading = false, playedSinceLoad = false, pausedAt = 0;
+  function reloadAudio(back){
+    const it = cur(); if (!it || !curUrl) return;
+    interrupted = false;
+    const t = isFinite(audio.currentTime) ? audio.currentTime : (it.pos || 0);
+    reloading = true; appPause = true;
+    pendingSeek = Math.max(0, t - back);
+    audio.src = curUrl; audio.load();
+    audio.defaultPlaybackRate = rate; audio.playbackRate = rate;
+    const p = audio.play(); if (p && p.catch) p.catch(() => { reloading = false; });
+  }
+  if (navigator.audioSession){   // Safari 17+: explicit interruption state
+    const as = navigator.audioSession;
+    try{ as.type = 'playback'; }catch(e){}
+    try{ as.addEventListener('statechange', () => {
+      if (as.state === 'interrupted') interrupted = true;
+      else if (as.state === 'active' && interrupted && !audio.paused) reloadAudio(3);
+    }); }catch(e){}
+  }
   function skip(sec){
     if(!cur()) return;
     const d = audio.duration || Infinity;
     audio.currentTime = Math.min(Math.max(0, audio.currentTime + sec), d - 0.5);
     updateTime();
   }
-  function goto(delta){ const i = idx()+delta; if (items[i]) select(items[i].id, !audio.paused || delta>0); }
+  // Keep the current play/pause state when jumping between files.
+  function goto(delta){ const i = idx()+delta; if (items[i]) select(items[i].id, !audio.paused); }
 
   function setRate(r){
     rate = clampRate(r); ls.set('rate', rate);
@@ -370,6 +647,7 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     it.pos = audio.currentTime;
     if (isFinite(audio.duration)) it.duration = audio.duration;
     store.putMeta(it); lastSave = Date.now();
+    refreshRow(it);
   }
 
   audio.addEventListener('loadedmetadata', () => {
@@ -383,11 +661,19 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     audio.playbackRate = rate;
     updateTime(); renderList();
   });
-  audio.addEventListener('play', () => { audio.playbackRate = rate; setPlayIcon(); });
-  audio.addEventListener('playing', () => { audio.playbackRate = rate; });
-  audio.addEventListener('pause', () => { setPlayIcon(); saveNow(); renderList(); });
+  audio.addEventListener('play', () => {
+    audio.playbackRate = rate; setPlayIcon();
+    if (interrupted && !reloading) reloadAudio(3);   // system auto-resume after an interruption
+  });
+  audio.addEventListener('playing', () => { audio.playbackRate = rate; appPause = false; reloading = false; playedSinceLoad = true; });
+  audio.addEventListener('pause', () => {
+    if (!appPause && !reloading && !audio.ended && cur()) interrupted = true;
+    appPause = false; pausedAt = Date.now();
+    setPlayIcon(); saveNow(); renderList();
+  });
   audio.addEventListener('timeupdate', () => {
     updateTime();
+    if (checkSleep()) return;
     if (Date.now() - lastSave > 5000) { saveNow(); }
     if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(audio.duration)){
       try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:rate}); }catch(e){}
@@ -401,7 +687,7 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     if (nxt) select(nxt.id, true); else { renderList(); toast('Плейлист закінчився'); }
   });
   audio.addEventListener('error', () => { if (cur()) toast('Цей формат не відтворюється на цьому телефоні.'); });
-  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); else checkSleep(); });
   window.addEventListener('pagehide', saveNow);
 
   // seek slider
@@ -419,43 +705,129 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
   function setMediaMeta(){
     if (!('mediaSession' in navigator)) return;
     const it = cur(); if(!it) return;
-    try{ navigator.mediaSession.metadata = new MediaMetadata({ title: it.name, artist: 'Слухайко', album: `Файл ${idx()+1} з ${items.length}` }); }catch(e){}
+    const cv = coverOf(it);
+    try{ navigator.mediaSession.metadata = new MediaMetadata({ title: it.name, artist: it.artist || 'Слухайко',
+      album: it.album || `Файл ${idx()+1} з ${items.length}`, artwork: cv ? [{src: cv, sizes: '512x512'}] : [] }); }catch(e){}
   }
   if ('mediaSession' in navigator){
     const ms = navigator.mediaSession, h = (a,f)=>{ try{ ms.setActionHandler(a,f);}catch(e){} };
-    h('play', play); h('pause', () => audio.pause());
+    h('play', play); h('pause', pauseApp);
     h('seekbackward', () => skip(-15)); h('seekforward', () => skip(30));
     h('previoustrack', () => goto(-1)); h('nexttrack', () => goto(1));
     h('seekto', e => { if (e.seekTime != null) { audio.currentTime = e.seekTime; updateTime(); } });
   }
 
   // ---------- sleep timer ----------
+  // Background timers are throttled on locked phones (iOS especially), so the deadline is
+  // checked against the wall clock from timeupdate too, which keeps firing while audio plays.
   let sleepMode = '0', sleepEnd = 0, sleepTick = null;
-  function clearSleep(){ sleepMode='0'; $('sleepSel').value='0'; $('sleepLeft').textContent=''; clearInterval(sleepTick); }
+  function clearSleep(){ sleepMode='0'; sleepEnd=0; $('sleepSel').value='0'; $('sleepLeft').textContent=''; clearInterval(sleepTick); }
+  function checkSleep(){
+    if (!sleepEnd) return false;
+    const left = sleepEnd - Date.now();
+    if (left <= 0){ pauseApp(); clearSleep(); toast('Таймер сну: пауза'); return true; }
+    $('sleepLeft').textContent = fmt(left/1000);
+    return false;
+  }
   $('sleepSel').addEventListener('change', e => {
-    clearInterval(sleepTick); sleepMode = e.target.value; $('sleepLeft').textContent = '';
+    clearInterval(sleepTick); sleepMode = e.target.value; sleepEnd = 0; $('sleepLeft').textContent = '';
     if (sleepMode === '0' || sleepMode === 'end') { if (sleepMode==='end') $('sleepLeft').textContent='⏾'; return; }
     sleepEnd = Date.now() + Number(sleepMode)*60000;
-    const tick = () => {
-      const left = sleepEnd - Date.now();
-      if (left <= 0){ audio.pause(); clearSleep(); toast('Таймер сну: пауза'); return; }
-      $('sleepLeft').textContent = fmt(left/1000);
-    };
-    tick(); sleepTick = setInterval(tick, 1000);
+    checkSleep(); sleepTick = setInterval(checkSleep, 1000);
   });
 
   // ---------- playlist ops ----------
   function persistOrder(){ items.forEach((it,i) => { if (it.order !== i){ it.order = i; store.putMeta(it); } }); }
   function move(i, d){
-    const j = i+d; if (j<0 || j>=items.length) return;
-    [items[i], items[j]] = [items[j], items[i]]; persistOrder(); renderList(); renderNow();
+    const j = i+d; if (j<0 || j>=items.length) return false;
+    [items[i], items[j]] = [items[j], items[i]]; persistOrder(); renderList(); renderNow(); setMediaMeta();
+    return true;
   }
-  async function removeItem(id){
-    if (id === curId){ audio.pause(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
-    try{ await store.remove(id); }catch(e){}
-    items = items.filter(i => i.id !== id); persistOrder();
-    renderList(); renderNow(); showStorage(); toast('Видалено');
+
+  // Drag by the ⠿ handle: the row moves through the DOM live as the finger crosses neighbours' midpoints;
+  // the new order is read back from the DOM on release. The page auto-scrolls near the screen edges.
+  let drag = null;
+  function startDrag(e, li){
+    if (e.button > 0) return;
+    e.preventDefault();
+    const grip = e.currentTarget;
+    try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+    drag = {li, y:e.clientY, moved:false, raf:0};
+    li.classList.add('dragging'); document.body.classList.add('drag-on');
+    try{ navigator.vibrate && navigator.vibrate(15); }catch(err){}
+    const onMove = ev => { if (drag){ drag.y = ev.clientY; dragStep(); } };
+    const onUp = () => {
+      grip.removeEventListener('pointermove', onMove); grip.removeEventListener('pointerup', onUp); grip.removeEventListener('pointercancel', onUp);
+      finishDrag();
+    };
+    grip.addEventListener('pointermove', onMove); grip.addEventListener('pointerup', onUp); grip.addEventListener('pointercancel', onUp);
+    const scroll = () => {
+      if (!drag) return;
+      const edge = 80, y = drag.y, h = innerHeight;
+      const dy = y < edge ? -(edge - y)/5 : y > h - edge ? (y - (h - edge))/5 : 0;
+      if (dy){ scrollBy(0, dy); dragStep(); }
+      drag.raf = requestAnimationFrame(scroll);
+    };
+    drag.raf = requestAnimationFrame(scroll);
   }
+  function dragStep(){
+    const li = drag.li, list = li.parentNode; let p, n;
+    while ((p = li.previousElementSibling)){ const r = p.getBoundingClientRect(); if (drag.y < r.top + r.height/2){ list.insertBefore(li, p); drag.moved = true; } else break; }
+    while ((n = li.nextElementSibling)){ const r = n.getBoundingClientRect(); if (drag.y > r.top + r.height/2){ list.insertBefore(n, li); drag.moved = true; } else break; }
+  }
+  function finishDrag(){
+    const d = drag; if (!d) return; drag = null;
+    cancelAnimationFrame(d.raf); document.body.classList.remove('drag-on');
+    if (d.moved){
+      const byId = new Map(items.map(i => [i.id, i]));
+      const next = [...$('list').children].map(li => byId.get(li.dataset.id)).filter(Boolean);
+      if (next.length === items.length){ items = next; persistOrder(); }
+    }
+    renderList(); renderNow(); setMediaMeta();
+  }
+
+  // One-shot sort; manual reordering keeps working afterwards. Parts of one book stay together
+  // (album → track number → file name) under every key.
+  const coll = new Intl.Collator('uk', {numeric:true, sensitivity:'base'});
+  const SORTS = {
+    name:   {label:'за назвою',  cmp:(a,b) => coll.compare(a.name, b.name)},
+    series: {label:'за серією',  need:i => i.series || i.album, cmp:(a,b) => coll.compare(a.series||a.album||'￿', b.series||b.album||'￿') || (a.year||9999)-(b.year||9999)},
+    year:   {label:'за роком',   need:i => i.year, cmp:(a,b) => (a.year||9999)-(b.year||9999)},
+    artist: {label:'за автором', need:i => i.artist, cmp:(a,b) => coll.compare(a.artist||'￿', b.artist||'￿')},
+    added:  {label:'як додавали', cmp:(a,b) => (a.added||0)-(b.added||0)}
+  };
+  const bookCmp = (a,b) => coll.compare(a.album||'', b.album||'') || (a.track||0)-(b.track||0) || coll.compare(a.name, b.name);
+  $('sortSel').addEventListener('change', e => {
+    const key = e.target.value, s = SORTS[key]; e.target.value = ''; if (!s) return;
+    if (s.need && !items.some(s.need)){ toast('У тегах файлів немає таких даних'); return; }
+    const pos = new Map(items.map((it,i) => [it.id, i]));
+    items = [...items].sort((a,b) => s.cmp(a,b) || (key==='added' || key==='name' ? 0 : bookCmp(a,b)) || pos.get(a.id)-pos.get(b.id));
+    persistOrder(); renderList(); renderNow(); setMediaMeta();
+    toast('Відсортовано ' + s.label);
+  });
+
+  async function removeItems(ids){
+    const set = new Set(ids);
+    if (set.has(curId)){ pauseApp(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
+    for (const id of set){ try{ await store.remove(id); }catch(e){} }
+    const gone = items.filter(i => set.has(i.id));
+    items = items.filter(i => !set.has(i.id)); persistOrder();
+    const used = new Set(items.map(i => i.cover));
+    for (const key of new Set(gone.map(i => i.cover).filter(k => k && !used.has(k)))){
+      await store.delFile(key); const u = coverUrls.get(key); if (u) URL.revokeObjectURL(u); coverUrls.delete(key);
+    }
+    renderList(); renderNow(); showStorage();
+    toast(set.size > 1 ? `Видалено: ${set.size}` : 'Видалено');
+  }
+  const removeItem = id => removeItems([id]);
+
+  $('clearDone').onclick = () => {
+    const b = $('clearDone'), done = items.filter(i => i.done).map(i => i.id);
+    if (!done.length) return;
+    if (b.classList.contains('arm')) { removeItems(done); return; }
+    b.classList.add('arm'); b.textContent = `Видалити ${done.length}?`;
+    setTimeout(() => { if (b.classList.contains('arm')){ b.classList.remove('arm'); b.textContent = 'Видалити прослухані'; } }, 3000);
+  };
 
   function probeDuration(blob){
     return new Promise(res => {
@@ -481,6 +853,7 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
       try{
         await store.putFile(id, f);
         const m = { id, name: cleanName(f.name) || f.name, size: f.size, pos: 0, duration: 0, done: false, order: items.length, added: Date.now() };
+        try{ await applyTags(m, f); }catch(err){}
         await store.putMeta(m); items.push(m); added++;
         renderList();
         probeDuration(f).then(d => { if (d){ m.duration = d; store.putMeta(m); renderList(); } });
@@ -521,13 +894,42 @@ details ol{padding-left:20px;margin:10px 0 0;display:flex;flex-direction:column;
     if (!db) toast('Браузер не дозволяє зберігати файли — вони зникнуть після закриття.');
     try{ if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
     try{ items = (await store.allMeta()).sort((a,b) => a.order - b.order); }catch(e){ items = []; }
+    await loadCovers();
     renderList();
     const saved = ls.get('cur', null);
     if (saved && items.some(i => i.id===saved)) await select(saved, false);
     else if (items.length) await select((items.find(i=>!i.done)||items[0]).id, false);
     renderNow(); showStorage();
     if (!items.length) $('help').open = true;
+    backfillTags();
   })();
+
+  // ---------- install to home screen ----------
+  // Chrome/Android fires beforeinstallprompt → show our own "Встановити" button. iPhone has no API for it,
+  // so explain the Share → Add to Home Screen path. Hidden once the app runs from the icon, or when dismissed.
+  const ua = navigator.userAgent;
+  const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isAndroid = /android/i.test(ua);
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let bip = null;
+  function showHint(){
+    if (standalone || ls.get('hintOff', false)) return;
+    if (bip) $('installText').textContent = 'Додайте Слухайко на головний екран — відкриватиметься з іконки, як звичайний застосунок.';
+    else if (isIOS) $('installText').innerHTML = 'Щоб відкривати Слухайко з іконки: у Safari натисніть <b>«Поділитися»</b> (квадрат зі стрілкою) → <b>«На початковий екран»</b>. Файли, додані тут, у застосунку з іконки доведеться додати ще раз.';
+    else if (isAndroid) $('installText').innerHTML = 'Щоб відкривати Слухайко з іконки: у Chrome натисніть <b>«⋮»</b> → <b>«Додати на головний екран»</b> або <b>«Встановити застосунок»</b>.';
+    else return;
+    $('install').hidden = !bip; $('installHint').hidden = false;
+  }
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); bip = e; showHint(); });
+  window.addEventListener('appinstalled', () => { bip = null; $('installHint').hidden = true; toast('Слухайко додано на головний екран'); });
+  $('install').onclick = async () => {
+    if (!bip) return; const p = bip; bip = null;
+    let ok = false;
+    p.prompt(); try{ const c = await p.userChoice; ok = c && c.outcome === 'accepted'; }catch(e){}
+    if (ok) $('installHint').hidden = true; else showHint();   // declined: fall back to the manual instructions
+  };
+  $('hintClose').onclick = () => { $('installHint').hidden = true; ls.set('hintOff', true); };
+  setTimeout(() => { if (!bip) showHint(); }, 2500);   // give Chrome time to fire beforeinstallprompt
 })();
 </script>
 <script>
