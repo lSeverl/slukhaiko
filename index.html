@@ -124,6 +124,35 @@ body.drag-on{-webkit-user-select:none;user-select:none}
 .hint .txt{flex:1;display:flex;flex-direction:column;gap:10px;align-items:flex-start;font-size:.9rem}
 .hint .txt p{margin:0}
 .hint button.x{border:0;background:transparent;font-size:1.3rem;line-height:1;color:var(--muted);width:32px;height:32px;flex:none}
+.linkbtn{border:0;background:none;padding:4px 0 0;color:var(--accent);font-weight:700;font-size:.88rem;text-align:left;text-decoration:underline;text-underline-offset:3px}
+
+/* Book info sheet */
+dialog#info{border:0;padding:0;background:transparent;color:var(--fg);width:min(560px,100%);max-width:100%;max-height:100%;margin:auto auto 0}
+dialog#info::backdrop{background:rgba(0,0,0,.45)}
+.sheet{background:var(--bg);border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px;max-height:92vh;overflow:auto}
+.sheet-head{display:flex;align-items:center;justify-content:space-between}
+.sheet .x{border:0;background:transparent;font-size:1.6rem;line-height:1;color:var(--muted);width:40px;height:40px}
+.sheet .note{margin:0;overflow-wrap:anywhere}
+.find{display:flex;gap:8px}
+.find input{flex:1;min-width:0}
+.sheet input:not([type=checkbox]),.sheet textarea{font:inherit;color:inherit;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 11px;width:100%}
+.sheet textarea{resize:vertical;font-size:.92rem}
+.cands{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.cands button{width:100%;display:flex;gap:10px;align-items:center;text-align:left;background:var(--surface);border:2px solid transparent;border-radius:10px;padding:8px}
+.cands button[aria-pressed=true]{border-color:var(--accent)}
+.cands img,.cands .noimg{width:40px;height:56px;object-fit:cover;border-radius:4px;flex:none;background:var(--sunk)}
+.cands b{display:block;font-weight:700;line-height:1.3}
+.cands small{display:block;color:var(--muted);font-size:.8rem;line-height:1.3}
+.fields{display:flex;flex-direction:column;gap:10px}
+.fields label{display:flex;flex-direction:column;gap:4px;font-size:.85rem;font-weight:600;color:var(--muted)}
+.fields label.check{flex-direction:row;align-items:center;gap:8px;color:var(--fg);font-weight:500}
+.fields .two{display:flex;gap:8px}
+.fields .two label{flex:1;min-width:0}
+.fields .two label.narrow{flex:0 0 72px}
+.cover-edit{display:flex;gap:12px;align-items:center}
+.cover-btns{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+.cover-btns .chip{cursor:pointer}
+.sheet-actions{display:flex;justify-content:flex-end;gap:8px;position:sticky;bottom:0;background:var(--bg);padding-top:6px}
 .btn-solid{border:0;background:var(--accent);color:var(--accent-fg);font-weight:700;border-radius:999px;padding:9px 16px}
 @media (prefers-reduced-motion:no-preference){.bar i{transition:width .4s}}
 </style>
@@ -148,6 +177,7 @@ body.drag-on{-webkit-user-select:none;user-select:none}
         <div class="eyebrow" id="nowLabel">Нічого не вибрано</div>
         <p class="now-title" id="nowTitle">Додайте аудіокнигу з Telegram</p>
         <p class="now-sub" id="nowSub" hidden></p>
+        <button class="linkbtn" id="infoBtn" hidden>Знайти назву, обкладинку й опис</button>
       </div>
     </div>
     <details class="desc" id="nowDesc" hidden><summary>Опис книги</summary><p id="nowDescText"></p></details>
@@ -218,6 +248,41 @@ body.drag-on{-webkit-user-select:none;user-select:none}
     <p class="note"><b>Іконка на телефоні:</b> Android — «⋮» у Chrome → «Додати на головний екран» / «Встановити застосунок». iPhone — «Поділитися» в Safari → «На початковий екран» (файли в застосунку з іконки на iPhone доведеться додати заново).</p>
   </details>
 </div>
+<dialog id="info" aria-label="Про книгу">
+  <form method="dialog" class="sheet" id="infoForm">
+    <div class="sheet-head"><h2>Про книгу</h2><button type="button" class="x" data-close aria-label="Закрити">×</button></div>
+    <p class="note" id="fFile"></p>
+    <div class="find">
+      <input type="search" id="fQuery" aria-label="Що шукати" enterkeyhint="search">
+      <button type="button" class="btn-solid" id="fGo">Знайти</button>
+    </div>
+    <p class="note" id="fState">Пошук у Вікіпедії та Google Книгах. Можна виправити запит — наприклад, лише назва книги кирилицею.</p>
+    <ul class="cands" id="fList"></ul>
+    <div class="fields">
+      <div class="cover-edit">
+        <img class="cover" id="fCover" alt="" hidden>
+        <div class="cover-btns">
+          <label class="chip" for="fCoverFile">Обкладинка з телефона</label>
+          <input type="file" id="fCoverFile" accept="image/*" hidden>
+          <button type="button" class="chip" id="fCoverDel" hidden>Прибрати обкладинку</button>
+        </div>
+      </div>
+      <label>Назва<input id="fTitle" autocomplete="off"></label>
+      <label>Автор<input id="fArtist" autocomplete="off"></label>
+      <div class="two">
+        <label>Серія<input id="fSeries" autocomplete="off"></label>
+        <label class="narrow">№<input id="fSeriesNo" inputmode="numeric" autocomplete="off"></label>
+        <label class="narrow">Рік<input id="fYear" inputmode="numeric" autocomplete="off"></label>
+      </div>
+      <label>Опис<textarea id="fDesc" rows="5"></textarea></label>
+      <label class="check" id="fAllWrap" hidden><input type="checkbox" id="fAll" checked> <span id="fAllText"></span></label>
+    </div>
+    <div class="sheet-actions">
+      <button type="button" class="chip" data-close>Скасувати</button>
+      <button class="btn-solid" value="save" id="fSave">Зберегти</button>
+    </div>
+  </form>
+</dialog>
 <div class="toast" id="toast" hidden></div>
 <audio id="audio" preload="metadata"></audio>
 
@@ -337,6 +402,11 @@ body.drag-on{-webkit-user-select:none;user-select:none}
       if (id==='PIC'){ mime = latin(d,1,4); i = 4; } else { const e = d.indexOf(0,1); mime = latin(d,1,e<0?1:e); i = (e<0?1:e)+1; }
       mime = mime.toLowerCase(); if (!mime.includes('/')) mime = 'image/'+mime; mime = mime.replace('/jpg','/jpeg');
       const type = d[i]; i = term(d, i+1, enc) + (wide(enc)?2:1);
+      // Some writers leave stray bytes before the image: jump to the real PNG/JPEG signature if it is near.
+      for (let j = i; j < Math.min(d.length - 3, i + 16); j++){
+        if (d[j]===0x89 && d[j+1]===0x50 && d[j+2]===0x4E && d[j+3]===0x47){ i = j; mime = 'image/png'; break; }
+        if (d[j]===0xFF && d[j+1]===0xD8 && d[j+2]===0xFF){ i = j; mime = 'image/jpeg'; break; }
+      }
       if (i < d.length && (!t.pic || (type===3 && t.picType!==3))){ t.pic = {type:mime, data:d.slice(i)}; t.picType = type; }
     } else if (id==='COMM'){
       const e = term(d, 4, enc), desc = decText(d.subarray(4,e), enc);
@@ -412,20 +482,37 @@ body.drag-on{-webkit-user-select:none;user-select:none}
   }
 
   const coverUrls = new Map();   // cover key -> object URL
+  const TAGS_VER = 2;            // bump to re-read tags of already added files
+  const JUNK_COVERS = new Set(['cv:w3s294she']);   // "created with audio-joiner.com" logo
   function hashBytes(u){ let h = 0x811c9dc5; for (let i=0;i<u.length;i++){ h ^= u[i]; h = Math.imul(h, 16777619); } return (h>>>0).toString(36) + u.length.toString(36); }
+  const norm = s => String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  async function saveCover(bytes, type){
+    const key = 'cv:' + hashBytes(bytes);
+    if (!coverUrls.has(key)){
+      const img = new Blob([bytes], {type});
+      try{ await store.putFile(key, img); coverUrls.set(key, URL.createObjectURL(img)); }catch(e){ return null; }
+    }
+    return key;
+  }
   async function applyTags(it, blob){
+    if (it.manual){ it.tags = TAGS_VER; return; }   // user-edited info wins over tags
     const t = await parseTags(blob);
     for (const k of ['title','artist','album','series','desc']) it[k] = String(t[k]||'').trim().slice(0, k==='desc' ? 5000 : 200);
+    // A title that just repeats the file name carries no information.
+    const fname = it.fileName || it.name;
+    if (norm(it.title) && norm(fname).startsWith(norm(it.title))) it.title = '';
+    if (norm(it.album) && norm(fname).startsWith(norm(it.album))) it.album = '';
     it.year = t.year || 0; it.track = t.track || 0;
-    if (t.pic && t.pic.data.length > 200 && t.pic.data.length < 8*1048576){
-      const key = 'cv:' + hashBytes(t.pic.data);
-      if (!coverUrls.has(key)){
-        const img = new Blob([t.pic.data], {type:t.pic.type});
-        try{ await store.putFile(key, img); coverUrls.set(key, URL.createObjectURL(img)); }catch(e){}
-      }
-      if (coverUrls.has(key)) it.cover = key;
+    it.cover = '';
+    if (t.pic && t.pic.data.length > 200 && t.pic.data.length < 8*1048576 && !JUNK_COVERS.has('cv:' + hashBytes(t.pic.data))){
+      it.cover = (await saveCover(t.pic.data, t.pic.type)) || '';
     }
-    it.tags = 1;
+    it.tags = TAGS_VER;
+  }
+  // Delete stored cover images no item points to any more.
+  async function gcCovers(){
+    const used = new Set(items.map(i => i.cover));
+    for (const [key, url] of [...coverUrls]) if (!used.has(key)){ await store.delFile(key); URL.revokeObjectURL(url); coverUrls.delete(key); }
   }
   async function loadCovers(){
     for (const key of new Set(items.map(i => i.cover).filter(Boolean))){
@@ -435,16 +522,20 @@ body.drag-on{-webkit-user-select:none;user-select:none}
   }
   // Items added before tag support: read their tags once, in the background.
   async function backfillTags(){
-    for (const it of items.filter(i => !i.tags)){
+    const todo = items.filter(i => (i.tags||0) < TAGS_VER);
+    for (const it of todo){
       try{
         const b = await store.getFile(it.id); if (!b) continue;
         await applyTags(it, b); await store.putMeta(it);
         renderList(); if (it.id===curId){ renderNow(); setMediaMeta(); }
       }catch(e){}
     }
+    if (todo.length) await gcCovers();
   }
-  const coverOf = it => it && it.cover ? coverUrls.get(it.cover) : null;
-  const subOf = it => [it.artist, it.album && it.album !== it.name ? it.album : '', it.year || ''].filter(Boolean).join(' · ');
+  const coverOf = it => it ? (it.cover && coverUrls.get(it.cover)) || it.coverRemote || null : null;
+  const subOf = it => [it.artist,
+    it.series ? it.series + (it.seriesNo ? ' #' + it.seriesNo : '') : (it.album && it.album !== it.name ? it.album : ''),
+    it.year || ''].filter(Boolean).join(' · ');
 
   // ---------- state ----------
   let items = [];           // meta objects sorted by order
@@ -540,6 +631,8 @@ body.drag-on{-webkit-user-select:none;user-select:none}
     $('nowSub').hidden = !sub; $('nowSub').textContent = sub;
     const desc = has && it.desc && it.desc !== it.name ? it.desc : '';
     $('nowDesc').hidden = !desc; $('nowDescText').textContent = desc;
+    $('infoBtn').hidden = !has;
+    if (has) $('infoBtn').textContent = (it.manual || (cv && it.artist)) ? 'Змінити інформацію про книгу' : 'Знайти назву, обкладинку й опис';
     updateTime();
   }
 
@@ -791,7 +884,7 @@ body.drag-on{-webkit-user-select:none;user-select:none}
   const coll = new Intl.Collator('uk', {numeric:true, sensitivity:'base'});
   const SORTS = {
     name:   {label:'за назвою',  cmp:(a,b) => coll.compare(a.name, b.name)},
-    series: {label:'за серією',  need:i => i.series || i.album, cmp:(a,b) => coll.compare(a.series||a.album||'￿', b.series||b.album||'￿') || (a.year||9999)-(b.year||9999)},
+    series: {label:'за серією',  need:i => i.series || i.album, cmp:(a,b) => coll.compare(a.series||a.album||'￿', b.series||b.album||'￿') || (a.seriesNo||999)-(b.seriesNo||999) || (a.year||9999)-(b.year||9999)},
     year:   {label:'за роком',   need:i => i.year, cmp:(a,b) => (a.year||9999)-(b.year||9999)},
     artist: {label:'за автором', need:i => i.artist, cmp:(a,b) => coll.compare(a.artist||'￿', b.artist||'￿')},
     added:  {label:'як додавали', cmp:(a,b) => (a.added||0)-(b.added||0)}
@@ -810,12 +903,9 @@ body.drag-on{-webkit-user-select:none;user-select:none}
     const set = new Set(ids);
     if (set.has(curId)){ pauseApp(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
     for (const id of set){ try{ await store.remove(id); }catch(e){} }
-    const gone = items.filter(i => set.has(i.id));
     items = items.filter(i => !set.has(i.id)); persistOrder();
     const used = new Set(items.map(i => i.cover));
-    for (const key of new Set(gone.map(i => i.cover).filter(k => k && !used.has(k)))){
-      await store.delFile(key); const u = coverUrls.get(key); if (u) URL.revokeObjectURL(u); coverUrls.delete(key);
-    }
+    await gcCovers();
     renderList(); renderNow(); showStorage();
     toast(set.size > 1 ? `Видалено: ${set.size}` : 'Видалено');
   }
@@ -886,6 +976,202 @@ body.drag-on{-webkit-user-select:none;user-select:none}
     const b = document.createElement('button'); b.className='chip'; b.dataset.r=r; b.textContent = r + '×';
     b.onclick = () => setRate(r); $('chips').appendChild(b);
   });
+
+  // ---------- book info: transliteration, online lookup, manual edit ----------
+  // Telegram audiobooks often carry no tags and a transliterated file name ("Derevianko_ArkanVovkiv_AudioBook").
+  // The query is a Cyrillic guess from the file name; results come from uk.wikipedia (+ Wikidata for author/year/series)
+  // and Google Books (keyless, often over quota — failures are ignored). The user picks a result and may edit fields.
+  // Saved info sets `manual: true`, so re-reading tags never overwrites it; `fileName` keeps the original name.
+  const TR = [['shch','щ'],['zgh','зг'],['iia','ія'],['iie','іє'],['iiu','ію'],['kh','х'],['zh','ж'],['ts','ц'],['ch','ч'],['sh','ш'],
+    ['yu','ю'],['iu','ю'],['ju','ю'],['ya','я'],['ia','я'],['ja','я'],['ye','є'],['ie','є'],['je','є'],['yo','йо'],['jo','йо'],['ji','ї'],
+    ['a','а'],['b','б'],['v','в'],['w','в'],['h','г'],['g','г'],['d','д'],['e','е'],['z','з'],['y','и'],['i','і'],['j','й'],['k','к'],
+    ['l','л'],['m','м'],['n','н'],['o','о'],['p','п'],['r','р'],['s','с'],['t','т'],['u','у'],['f','ф'],['c','ц'],['q','к'],['x','кс']];
+  function translitWord(w){
+    if (/[Ѐ-ӿ]/.test(w) || !/[a-z]/i.test(w)) return w;
+    const lw = w.toLowerCase(); let out = '';
+    for (let i = 0; i < lw.length; ){
+      const rest = lw.slice(i); let m = null;
+      const end = (lat, cyr) => rest === lat && i > 0 ? [lat.length, cyr] : null;
+      m = end('tskyi','цький') || end('zkyi','зький') || end('skyi','ський') || end('ska','ська') || end('ii','ій');   // Kotsiubynskyi → Коцюбинський, Oleksii → Олексій
+      if (m) { /* word ending matched */ }
+      else if (rest.startsWith('yi')) m = [2, i > 0 && i + 2 >= lw.length ? 'ий' : 'ї'];     // Kyiv → Київ, Zelenyi → Зелений
+      else if (rest.startsWith('iy') && !'aeiouy'.includes(lw[i+2] || '')) m = [2, 'ій'];       // Viyny → Війни
+      else if (rest.startsWith('yy')) m = [2, 'ий'];
+      else for (const [lat, cyr] of TR) if (rest.startsWith(lat)){ m = [lat.length, cyr]; break; }
+      if (!m) m = [1, rest[0]];
+      out += m[1]; i += m[0];
+    }
+    out = out.replace(/([аеоуяюєї])і/g, '$1ї')                            // Ukrainka → Українка
+      .replace(/([аеиіоуяюєї])([бпвмф])([яюєї])/g, "$1$2'$3");               // Derevianko → Дерев'янко
+    return /[A-Z]/.test(w[0]) ? out[0].toUpperCase() + out.slice(1) : out;
+  }
+  const GENERIC = /^(audio|book|audiobook|audioknyha|audiokniga|knyha|kniga|mp3|m4a|m4b|chastyna|chast|part|pt|glava|hlava|rozdil|cd|disc|vol|аудіокнига|аудиокнига|аудіо|частина|глава|розділ)$/i;
+  const words = s => String(s||'').replace(/([a-zа-яіїєґ])([A-ZА-ЯІЇЄҐ])/g, '$1 $2').split(/[\s_.\-–—,()\[\]{}«»"]+/).filter(w => w && !GENERIC.test(w) && !/^\d+$/.test(w));
+  const guessQuery = it => (it.album || it.title)
+    ? [it.artist, it.album || it.title].filter(Boolean).join(' ')
+    : words(it.fileName || it.name).map(translitWord).join(' ');
+  // Title guess from the file name: "Author_TitleWords_AudioBook" → "Пісня дібров" (first segment taken as the author).
+  function guessTitle(it){
+    const segs = String(it.fileName || it.name).split(/_+|\s+[-–—]\s+/).map(s => words(s).map(translitWord).join(' ')).filter(Boolean);
+    const t = (segs.length > 1 ? segs.slice(1) : segs).join(' ').toLowerCase();
+    return t ? t[0].toUpperCase() + t.slice(1) : '';
+  }
+  const bookStem = it => { const n = (it.fileName || it.name).toLowerCase(); return words(n).join(' ') || n.replace(/\d+/g, '').trim(); };
+  const sameBook = (a, b) => a.id === b.id || (!!a.album && a.album === b.album) || (!!bookStem(a) && bookStem(a) === bookStem(b));
+
+  async function getJSON(u){ const r = await fetch(u); if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }
+  // Books first: rank pages whose short description names a literary work above authors, places, films.
+  const BOOKISH = /роман|повіст|книг|збірк|трилогі|цикл|оповідан|п'єс|п’єс|драм|поем|казк|новел|фентезі/i;
+  async function searchWikiAll(q){
+    const ws = q.split(/\s+/), qs = [q]; if (ws.length >= 3) qs.push(ws.slice(1).join(' '));   // 2nd try without the (likely) author
+    const lists = await Promise.all(qs.map(x => searchWiki(x).catch(() => [])));
+    const seen = new Set(), all = [];
+    lists.flat().forEach((c, i) => { if (!seen.has(c.qid || c.title)){ seen.add(c.qid || c.title); all.push({c, r: (BOOKISH.test(c.sub) ? 0 : 100) + i}); } });
+    if (!all.length && lists.every(l => !l.length)) await searchWiki(q);   // rethrow network errors
+    return all.sort((a,b) => a.r - b.r).map(x => x.c);
+  }
+  // Wikidata labels people as "Прізвище Ім'я По-батькові"; show "Ім'я Прізвище".
+  const personName = s => { const w = String(s||'').split(' '); return w.length === 3 && /(вич|вна|ївна|ична)$/.test(w[2]) ? `${w[1]} ${w[0]}` : s; };
+  async function searchWiki(q){
+    const d = await getJSON('https://uk.wikipedia.org/w/api.php?action=query&format=json&formatversion=2&origin=*'
+      + '&generator=search&gsrlimit=6&prop=pageimages|extracts|pageprops|description&exintro=1&explaintext=1&exlimit=max&exchars=1500'
+      + '&piprop=thumbnail&pithumbsize=600&ppprop=wikibase_item&gsrsearch=' + encodeURIComponent(q));
+    return ((d.query && d.query.pages) || []).sort((a,b) => a.index - b.index).map(p => ({
+      src:'Вікіпедія', title:p.title.replace(/\s*\([^)]*\)$/, ''), sub:p.description || '', desc:p.extract || '',
+      img:(p.thumbnail && p.thumbnail.source) || '', qid:p.pageprops && p.pageprops.wikibase_item }));
+  }
+  async function wikiDetails(qid){
+    const W = 'https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&origin=*&';
+    const e = (await getJSON(W + 'props=claims&ids=' + qid)).entities[qid] || {};
+    const cl = k => (e.claims && e.claims[k] && e.claims[k][0]) || null;
+    const val = k => { const c = cl(k); return c && c.mainsnak.datavalue ? c.mainsnak.datavalue.value : null; };
+    const out = {year: yearOf((val('P577') || {}).time)};
+    const aId = (val('P50') || {}).id, sId = (val('P179') || {}).id, sc = cl('P179');
+    const no = sc && sc.qualifiers && sc.qualifiers.P1545 && sc.qualifiers.P1545[0].datavalue;
+    if (no) out.seriesNo = parseInt(no.value) || 0;
+    const ids = [aId, sId].filter(Boolean);
+    if (ids.length){
+      const L = (await getJSON(W + 'props=labels&languages=uk|en&ids=' + ids.join('|'))).entities || {};
+      const lab = id => id && L[id] && L[id].labels ? ((L[id].labels.uk || L[id].labels.en || {}).value || '') : '';
+      out.artist = personName(lab(aId)); out.series = lab(sId);
+    }
+    return out;
+  }
+  async function searchGB(q){
+    const d = await getJSON('https://www.googleapis.com/books/v1/volumes?maxResults=6&q=' + encodeURIComponent(q));
+    return (d.items || []).map(i => {
+      const v = i.volumeInfo || {}, artist = (v.authors || []).join(', '), year = yearOf(v.publishedDate);
+      const img = ((v.imageLinks && (v.imageLinks.thumbnail || v.imageLinks.smallThumbnail)) || '').replace(/^http:/, 'https:').replace('&edge=curl', '');
+      return {src:'Google Книги', title:v.title + (v.subtitle ? '. ' + v.subtitle : ''), artist, year, desc:v.description || '', img,
+        sub:[artist, year || ''].filter(Boolean).join(' · ')};
+    });
+  }
+  // Gallery photos can be several MB: keep covers at ≤ 800 px.
+  async function shrinkImage(file){
+    try{
+      const bm = await createImageBitmap(file), k = Math.min(1, 800 / Math.max(bm.width, bm.height));
+      const c = document.createElement('canvas'); c.width = Math.round(bm.width*k); c.height = Math.round(bm.height*k);
+      c.getContext('2d').drawImage(bm, 0, 0, c.width, c.height);
+      return await new Promise(res => c.toBlob(b => res(b || file), 'image/jpeg', 0.85));
+    }catch(e){ return file; }
+  }
+
+  let ed = null, searchSeq = 0;
+  const FIELDS = {title:'fTitle', artist:'fArtist', series:'fSeries', seriesNo:'fSeriesNo', year:'fYear', desc:'fDesc'};
+  function fillFields(c, force){ for (const [k, id] of Object.entries(FIELDS)) if (force || c[k]) $(id).value = c[k] || ''; }
+  function showCover(url){ $('fCover').hidden = !url; if (url) $('fCover').src = url; else $('fCover').removeAttribute('src'); $('fCoverDel').hidden = !url; }
+  function openInfo(){
+    const it = cur(); if (!it) return;
+    const group = items.filter(x => sameBook(it, x));
+    ed = {it, group, coverKey: it.cover || '', coverRemote: it.coverRemote || '', coverBlob: null, picked: null};
+    $('fFile').textContent = 'Файл: ' + (it.fileName || it.name);
+    $('fQuery').value = guessQuery(it);
+    fillFields({title: it.manual ? (it.title || it.name) : (it.album || it.title || guessTitle(it)), artist: it.artist, series: it.series,
+      seriesNo: it.seriesNo || '', year: it.year || '', desc: it.desc}, true);
+    showCover(coverOf(it));
+    $('fAllWrap').hidden = group.length < 2; $('fAll').checked = true;
+    $('fAllText').textContent = `Застосувати до всіх файлів цієї книги (${group.length})`;
+    $('fList').innerHTML = '';
+    $('fState').textContent = 'Пошук у Вікіпедії та Google Книгах. Можна виправити запит — наприклад, лише назва книги кирилицею.';
+    $('info').returnValue = '';
+    $('info').showModal();
+    if (!it.manual && !(it.artist && coverOf(it))) runSearch();
+  }
+  async function runSearch(){
+    const q = $('fQuery').value.trim(); if (!q) return;
+    const seq = ++searchSeq;
+    $('fState').textContent = 'Шукаю…'; $('fList').innerHTML = '';
+    const [w, g] = await Promise.allSettled([searchWikiAll(q), searchGB(q)]);
+    if (seq !== searchSeq || !ed) return;
+    const res = [...(w.value || []), ...(g.value || [])].slice(0, 12);
+    $('fState').textContent = res.length ? 'Виберіть свою книгу — поля нижче заповняться, їх можна виправити.'
+      : (w.status === 'rejected' && g.status === 'rejected') ? 'Немає зв’язку з інтернетом або сервіси недоступні. Можна заповнити поля вручну.'
+      : 'Нічого не знайдено. Спробуйте інший запит — наприклад, лише назву книги кирилицею. Або заповніть поля вручну.';
+    for (const c of res){
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.type = 'button'; b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = (c.img ? '<img alt="" loading="lazy" referrerpolicy="no-referrer">' : '<span class="noimg"></span>') + '<span><b></b><small class="s1"></small><small class="s2"></small></span>';
+      if (c.img) b.querySelector('img').src = c.img;
+      b.querySelector('b').textContent = c.title;
+      b.querySelector('.s1').textContent = c.sub;
+      b.querySelector('.s2').textContent = c.src;
+      b.onclick = () => pick(c, b);
+      li.appendChild(b); $('fList').appendChild(li);
+    }
+  }
+  async function pick(c, btn){
+    if (!ed) return;
+    ed.picked = c;
+    $('fList').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    // An article about the whole series: use it for the series name/author, keep the book title and cover.
+    if (/трилогі|тетралогі|дилогі|пенталогі|цикл|серія|серії|сага/i.test(c.sub)){
+      $('fSeries').value = c.title;
+      if (!$('fDesc').value.trim()) $('fDesc').value = c.desc;
+      if (c.qid){ try{ const x = await wikiDetails(c.qid); if (ed && ed.picked === c && x.artist) $('fArtist').value = x.artist; }catch(e){} }
+      return;
+    }
+    fillFields(c);
+    if (c.img){
+      showCover(c.img); ed.coverKey = ''; ed.coverBlob = null; ed.coverRemote = c.img;
+      try{   // keep a local copy so the cover works offline; if CORS blocks it, the remote URL is kept instead
+        const r = await fetch(c.img);
+        if (r.ok){ const b = await r.blob(); if (ed && ed.picked === c && /^image\//.test(b.type)){ ed.coverBlob = b; ed.coverRemote = ''; } }
+      }catch(e){}
+    }
+    if (c.qid){ try{ const x = await wikiDetails(c.qid); if (ed && ed.picked === c) fillFields(x); }catch(e){} }
+  }
+  async function saveInfo(){
+    const e = ed; ed = null; if (!e) return;
+    const v = id => $(id).value.trim();
+    let key = e.coverKey, remote = e.coverRemote;
+    if (e.coverBlob){ key = (await saveCover(new Uint8Array(await e.coverBlob.arrayBuffer()), e.coverBlob.type || 'image/jpeg')) || ''; remote = key ? '' : remote; }
+    const targets = (!$('fAllWrap').hidden && $('fAll').checked) ? e.group : [e.it];
+    const title = v('fTitle'), multi = targets.length > 1;
+    for (const it of targets){
+      if (!it.fileName) it.fileName = it.name;
+      Object.assign(it, {title, artist: v('fArtist'), series: v('fSeries'), seriesNo: parseInt(v('fSeriesNo')) || 0,
+        year: yearOf(v('fYear')), desc: v('fDesc'), cover: key, coverRemote: remote, manual: true});
+      if (multi) it.album = title;
+      const num = (it.fileName.match(/(\d+)\D*$/) || [])[1];
+      it.name = !title ? it.fileName : !multi ? title : num ? `${title}, ч. ${+num}` : `${title} — ${it.fileName}`;
+      await store.putMeta(it);
+    }
+    await gcCovers();
+    renderList(); renderNow(); setMediaMeta();
+    toast(multi ? `Збережено для ${targets.length} файлів` : 'Збережено');
+  }
+  $('infoBtn').onclick = openInfo;
+  $('fGo').onclick = runSearch;
+  $('fQuery').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); runSearch(); } });
+  $('fCoverFile').addEventListener('change', async e => {
+    const f = e.target.files[0]; e.target.value = ''; if (!f || !ed) return;
+    const b = await shrinkImage(f); if (!ed) return;
+    ed.coverBlob = b; ed.coverKey = ''; ed.coverRemote = '';
+    showCover(URL.createObjectURL(b));
+  });
+  $('fCoverDel').onclick = () => { if (!ed) return; ed.coverBlob = null; ed.coverKey = ''; ed.coverRemote = ''; showCover(null); };
+  document.querySelectorAll('#info [data-close]').forEach(b => b.onclick = () => $('info').close('cancel'));
+  $('info').addEventListener('close', () => { if ($('info').returnValue === 'save') saveInfo(); else ed = null; searchSeq++; });
 
   // ---------- boot ----------
   (async () => {

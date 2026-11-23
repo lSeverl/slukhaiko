@@ -1,6 +1,6 @@
 // Слухайко — service worker: app works offline after the first visit.
 // Bump VERSION on every release so phones pick up the new files.
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png',
@@ -33,7 +33,10 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Everything else (icons, Google Fonts): cache first.
+  // Book lookups (Wikipedia, Google Books APIs): always network, never cached.
+  if (url.origin !== location.origin && !/^fonts\.(googleapis|gstatic)\.com$/.test(url.hostname) && req.destination !== 'image') return;
+
+  // Everything else (icons, Google Fonts, cover images shown by URL): cache first.
   e.respondWith(
     caches.match(req).then(hit => hit || fetch(req).then(r => {
       if (r.ok || r.type === 'opaque') { const copy = r.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }

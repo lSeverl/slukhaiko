@@ -15,9 +15,10 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
   IndexedDB `slukhayko` v1, stores `files` (Blob, or `{buf,type}` fallback for old Safari) and
   `meta` (keyPath `id`). If IndexedDB fails, falls back to in-memory Maps.
 - **item meta**: `{id, name, size, pos, duration, done, order, added}` + optional tag fields
-  `{title, artist, album, series, year, track, desc, cover, tags}`. One flat playlist sorted by `order`.
+  `{title, artist, album, series, seriesNo, year, track, desc, cover, coverRemote, tags, manual, fileName}`. One flat playlist sorted by `order`.
   `cover` = key `cv:<hash>` of an image Blob in the `files` store, shared between files; deleted when unreferenced.
-  Adding optional fields needs no version bump (old items are backfilled by `backfillTags()` on boot).
+  Adding optional fields needs no version bump (items with `tags < TAGS_VER` are re-read by `backfillTags()` on boot).
+  `manual: true` = user saved info in the «Про книгу» sheet; tags never overwrite it. `fileName` = original name.
   Changing this schema requires `indexedDB.open('slukhayko', 2)` + migration in `onupgradeneeded` —
   users already have data on their phones.
 - **render**: `renderList()` rebuilds the list; `refreshRow(it)` updates one row's bar/meta in place;
@@ -26,7 +27,7 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
   `loadedmetadata`. `saveNow()` every 5 s from `timeupdate`, on pause, `visibilitychange`, `pagehide`.
   `ended` → mark done, go to next not-done item. `goto(delta)` keeps current play/pause state.
 - **tags**: `parseTags(blob)` reads ID3v2.2–2.4 (cp1251/UTF-8 heuristics for "Latin-1" text), MP4 `ilst`
-  (moov may be at the end), ID3v1 fallback. `applyTags(it, blob)` fills meta. Series = TXXX SERIES / MVNM / TIT1, ©mvn / ©grp.
+  (moov may be at the end), ID3v1 fallback. Titles equal to the file name and `JUNK_COVERS` (audio-joiner logo) are dropped. `applyTags(it, blob)` fills meta. Series = TXXX SERIES / MVNM / TIT1, ©mvn / ©grp.
 - **interruptions**: a `pause` we didn't cause (`appPause` flag, set by `pauseApp()`/`select`) marks `interrupted`;
   the next `play` (system auto-resume or user) calls `reloadAudio(back)` — reassigns `src` and seeks. Every user resume
   after a pause reloads too (Android Chrome sometimes resumes silently after an air-raid-alert app takes audio focus).
@@ -37,6 +38,10 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
 - **playlist ops**: drag by `.grip` (`startDrag`/`dragStep`/`finishDrag`, pointer events, live DOM reorder;
   `renderList()` is a no-op while `drag` is set), arrow keys on the grip → `move`. `#sortSel` one-shot sort (`SORTS`,
   parts of a book stay together via `bookCmp`). `move`, `removeItems(ids)` / `removeItem(id)`, «Видалити прослухані» button (`#clearDone`, two-tap confirm).
+- **book info sheet** (`#info` dialog, `openInfo`/`runSearch`/`pick`/`saveInfo`): query = `translitWord` guess from the
+  file name; searches uk.wikipedia (+ Wikidata for author/year/series) and Google Books (keyless, often 429 — ignored).
+  Cover is fetched to a Blob when CORS allows, else kept as `coverRemote` URL. «All files of this book» uses `sameBook`.
+  sw.js never caches cross-origin API calls (only fonts and images).
 - **install**: `beforeinstallprompt` → «Встановити» button in `#installHint`; iOS/other Android get manual instructions.
   Dismissal stored in `ls` key `hintOff`.
 - **add files**: sorted by name with `localeCompare('uk', {numeric:true})`, duration probed via a separate `Audio`.
