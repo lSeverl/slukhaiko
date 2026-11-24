@@ -295,7 +295,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   const $ = id => document.getElementById(id);
   const audio = $('audio');
   const isAndroid = /android/i.test(navigator.userAgent);
-  const APP_VERSION = 'v9';   // keep equal to VERSION in sw.js
+  const APP_VERSION = 'v10';   // keep equal to VERSION in sw.js
   $('ver').textContent = APP_VERSION;
   const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
   const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
@@ -827,26 +827,36 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   // (measured via adb; a Web Lock did not help). While paused we loop a near-inaudible 40 Hz tone (about -60 dBFS:
   // pure silence may not count as audible), for at most 30 min. Cost: battery.
   // The tone goes through Web Audio, not an <audio> element: an element makes the media session "playing", and Chrome
-  // then drops the headset's PLAY command (v8, measured). This way the session should stay "paused".
-  const KEEP_MS = 30*60000;
-  let keepCtx = null, keepOsc = null;
+  // then drops the headset's PLAY command (v8). It must not be continuous either: while any sound streams to the
+  // headset, Galaxy Buds send PAUSE for "resume" and Chrome drops it because the session is paused (v9).
+  // So: a short burst now and then, with the audio output closed in between.
+  const KEEP_MS = 30*60000, KEEP_EVERY = 20000, KEEP_BURST = 1500;
+  let keepCtx = null, keepGain = null, keepEnd = 0, keepTimer = null;
   function keepStart(){
-    const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC || !isAndroid || !ls.get('keep', false) || keepOsc) return;
+    if (!isAndroid || !ls.get('keep', false)) return;
+    keepEnd = Date.now() + KEEP_MS;
+    clearTimeout(keepTimer); keepTimer = setTimeout(keepBurst, KEEP_EVERY);
+  }
+  async function keepBurst(){
+    if (!keepEnd || Date.now() > keepEnd || !audio.paused){ keepStop(); return; }
     try{
-      if (!keepCtx) keepCtx = new AC();
-      const p = keepCtx.resume(); if (p && p.catch) p.catch(() => {});
-      const g = keepCtx.createGain(); g.gain.value = 0.001;
-      keepOsc = keepCtx.createOscillator(); keepOsc.frequency.value = 40;
-      keepOsc.connect(g); g.connect(keepCtx.destination);
-      const osc = keepOsc; osc.onended = () => { g.disconnect(); if (keepOsc === osc) keepStop(); };
-      osc.start(); osc.stop(keepCtx.currentTime + KEEP_MS/1000);
-    }catch(e){ keepOsc = null; }
+      if (!keepCtx){
+        const AC = window.AudioContext || window.webkitAudioContext;
+        keepCtx = new AC(); keepGain = keepCtx.createGain(); keepGain.gain.value = 0.001;
+        const osc = keepCtx.createOscillator(); osc.frequency.value = 40;
+        osc.connect(keepGain); keepGain.connect(keepCtx.destination); osc.start();
+      }
+      await keepCtx.resume();
+    }catch(e){}
+    if (!keepEnd){ keepStop(); return; }   // resumed playing meanwhile
+    keepTimer = setTimeout(() => {
+      if (keepCtx) keepCtx.suspend().catch(() => {});   // close the output so the headset sees silence
+      if (keepEnd) keepTimer = setTimeout(keepBurst, KEEP_EVERY);
+    }, KEEP_BURST);
   }
   function keepStop(){
-    const o = keepOsc; keepOsc = null;
-    if (o) try{ o.stop(); }catch(e){}
-    if (keepCtx && keepCtx.state === 'running') keepCtx.suspend().catch(() => {});   // release the audio output
+    keepEnd = 0; clearTimeout(keepTimer);
+    if (keepCtx && keepCtx.state === 'running') keepCtx.suspend().catch(() => {});
   }
   audio.addEventListener('playing', keepStop);
   $('keepWrap').hidden = !isAndroid;

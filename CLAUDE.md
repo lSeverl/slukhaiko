@@ -36,7 +36,8 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
   `sendPosition()` runs on state changes only, not on `timeupdate`.
   Always pause through `pauseApp()`, never bare `audio.pause()`.
 - **keep-alive** (opt-in `ls` key `keep`, Android): `userPause()` plays a near-inaudible Web Audio tone up to 30 min so Chrome keeps
-  running the hidden page. Not an `<audio>` element: that makes the session "playing" and Chrome drops the headset's PLAY. Sleep timer uses plain `pauseApp()`.
+  running the hidden page. Not an `<audio>` element: that makes the session "playing" and Chrome drops the headset's PLAY. Not continuous: while sound
+  streams, Galaxy Buds send PAUSE for resume (dropped too). Hence 1.5 s bursts every 20 s. Sleep timer uses plain `pauseApp()`.
 - **media session**: lock-screen controls (−15 / +30 s, prev/next track, seekto).
 - **sleep timer**: `checkSleep()` compares wall clock to `sleepEnd`; called from `setInterval`,
   `timeupdate` and `visibilitychange` (background timers are throttled on locked phones). Mode `end` = stop after file.
