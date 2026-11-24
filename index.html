@@ -71,6 +71,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px;margin:0}
 .chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .sleep{display:flex;align-items:center;gap:8px;font-size:.9rem}
 .sleep select{background:var(--sunk);border:0;border-radius:10px;padding:7px 10px}
+.keep{display:flex;align-items:center;gap:8px;font-size:.9rem}
 .sleep .left{color:var(--mark);font-weight:700;font-variant-numeric:tabular-nums}
 
 /* Shelf */
@@ -211,6 +212,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
       </select>
       <span class="left" id="sleepLeft"></span>
     </div>
+    <label class="keep" id="keepWrap" hidden><input type="checkbox" id="keepOn"><span>Кнопки навушників після довгої паузи <span class="muted">(експеримент, до 30 хв)</span></span></label>
   </section>
 
   <section style="display:flex;flex-direction:column;gap:10px" aria-label="Плейлист">
@@ -247,7 +249,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     </ol>
     <p class="note">Плеєр запам'ятовує, де ви зупинилися в кожному файлі, і вибрану швидкість. Коли файл закінчується, сам вмикається наступний. Порядок можна змінити, перетягнувши файл за ⠿. Назву, автора, рік, обкладинку й опис плеєр бере з тегів файлу, якщо вони там є.</p>
     <p class="note"><b>Іконка на телефоні:</b> Android — «⋮» у Chrome → «Додати на головний екран» / «Встановити застосунок». iPhone — «Поділитися» в Safari → «На початковий екран» (файли в застосунку з іконки на iPhone доведеться додати заново).</p>
-    <p class="note"><b>Android: кнопки навушників.</b> Якщо після паузи кнопка вмикає іншу програму (наприклад, радіо): Налаштування → Програми → Chrome → Акумулятор → <b>Без обмежень</b>. З таким дозволом Android не повинен зупиняти плеєр під час паузи. Слухайко працює всередині Chrome, тому змінювати треба саме його. Не закривайте Слухайко зі списку останніх програм. Якщо після довгої паузи кнопка не реагує, відкрийте Слухайко — місце зупинки збережене. Коли Слухайко відкритий на екрані, після паузи кнопка може спрацювати лише за кілька секунд.</p>
+    <p class="note"><b>Android: кнопки навушників.</b> Якщо після паузи кнопка вмикає іншу програму (наприклад, радіо): Налаштування → Програми → Chrome → Акумулятор → <b>Без обмежень</b>. З таким дозволом Android не повинен зупиняти плеєр під час паузи. Слухайко працює всередині Chrome, тому змінювати треба саме його. Не закривайте Слухайко зі списку останніх програм. Якщо після довгої паузи кнопка не реагує, відкрийте Слухайко — місце зупинки збережене. Коли Слухайко відкритий на екрані, після паузи кнопка може спрацювати лише за кілька секунд. Перемикач <b>«Кнопки навушників після довгої паузи»</b> тримає плеєр активним до 30 хв паузи: система показуватиме «відтворюється», заряд витрачається швидше, а вийнятий з вуха навушник може запустити книгу.</p>
   </details>
 </div>
 <dialog id="info" aria-label="Про книгу">
@@ -292,7 +294,8 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
 (() => {
   const $ = id => document.getElementById(id);
   const audio = $('audio');
-  const APP_VERSION = 'v7';   // keep equal to VERSION in sw.js
+  const isAndroid = /android/i.test(navigator.userAgent);
+  const APP_VERSION = 'v8';   // keep equal to VERSION in sw.js
   $('ver').textContent = APP_VERSION;
   const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
   const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
@@ -696,7 +699,8 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     const p = audio.play(); if (p && p.catch) p.catch(()=>{});
   }
   function pauseApp(){ appPause = true; audio.pause(); }
-  function togglePlay(){ if(!cur()) return; audio.paused ? play(true) : pauseApp(); }
+  function userPause(){ if (!audio.paused) keepStart(); pauseApp(); }   // a pause the user will want to resume from the headset
+  function togglePlay(){ if(!cur()) return; audio.paused ? play(true) : userPause(); }
 
   // ---------- interruptions (air-raid alert apps, calls, navigation prompts) ----------
   // When another app grabs audio focus, Chrome on Android pauses the element and resumes it later — and the
@@ -777,7 +781,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   // The system extrapolates the position itself; sending it on every timeupdate floods Bluetooth (AVRCP) with updates.
   function sendPosition(){
     if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !(audio.duration > 0) || !isFinite(audio.duration)) return;
-    try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:rate}); }catch(e){}
+    try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate: keepEnd ? 0.01 : rate}); }catch(e){}   // keep-alive: do not let the shown position run
   }
   ['loadedmetadata','playing','pause','seeked','ratechange'].forEach(ev => audio.addEventListener(ev, sendPosition));
   audio.addEventListener('ended', () => {
@@ -812,17 +816,45 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   }
   if ('mediaSession' in navigator){
     const ms = navigator.mediaSession, h = (a,f)=>{ try{ ms.setActionHandler(a,f);}catch(e){} };
-    h('play', () => play()); h('pause', pauseApp);
+    h('play', () => play()); h('pause', () => {
+      // While the keep-alive sound runs, the headset believes we are playing and sends PAUSE for "resume".
+      if (audio.paused && !keep.paused) play(); else userPause();
+    });
     h('seekbackward', () => skip(-15)); h('seekforward', () => skip(30));
     h('previoustrack', () => goto(-1)); h('nexttrack', () => goto(1));
     h('seekto', e => { if (e.seekTime != null) { audio.currentTime = e.seekTime; updateTime(); } });
   }
 
-  // ---------- background freezing (experiment) ----------
-  // Chrome freezes a hidden page after a few silent minutes; headset commands then queue up until it is opened again.
-  // Holding a Web Lock may exempt the page. The toast tells us whether a freeze still happened.
+  // ---------- keep-alive during pause (experiment, opt-in, Android) ----------
+  // Chrome stops running a hidden, silent page within ~2 min; headset commands then wait until it is opened again
+  // (measured via adb; a Web Lock did not help). While paused we loop a near-inaudible 40 Hz tone (about -60 dBFS:
+  // pure silence may not count as audible), for at most 30 min. Cost: the system shows "playing".
+  const KEEP_MS = 30*60000;
+  const keep = new Audio(); keep.loop = true;
+  let keepUrl = null, keepEnd = 0;
+  function keepTone(){
+    const sr = 8000, n = sr*10, dv = new DataView(new ArrayBuffer(44 + n*2));
+    const str = (o,s) => { for (let i=0;i<s.length;i++) dv.setUint8(o+i, s.charCodeAt(i)); };
+    str(0,'RIFF'); dv.setUint32(4, 36+n*2, true); str(8,'WAVEfmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+    dv.setUint32(24,sr,true); dv.setUint32(28,sr*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true); str(36,'data'); dv.setUint32(40,n*2,true);
+    for (let i=0;i<n;i++) dv.setInt16(44+i*2, Math.round(33*Math.sin(2*Math.PI*40*i/sr)), true);
+    return URL.createObjectURL(new Blob([dv.buffer], {type:'audio/wav'}));
+  }
+  function keepStart(){
+    if (!isAndroid || !ls.get('keep', false)) return;
+    if (!keepUrl){ keepUrl = keepTone(); keep.src = keepUrl; }
+    keepEnd = Date.now() + KEEP_MS;
+    const p = keep.play(); if (p && p.catch) p.catch(() => {});
+  }
+  function keepStop(){ keepEnd = 0; if (!keep.paused) keep.pause(); }
+  keep.addEventListener('timeupdate', () => { if (Date.now() > keepEnd) keepStop(); });
+  keep.addEventListener('play', () => { if (!keepEnd || !audio.paused) keepStop(); });   // system auto-resume we no longer need
+  audio.addEventListener('playing', keepStop);
+  $('keepWrap').hidden = !isAndroid;
+  $('keepOn').checked = ls.get('keep', false);
+  $('keepOn').addEventListener('change', e => { ls.set('keep', e.target.checked); if (!e.target.checked) keepStop(); });
+
   let frozenAt = 0;
-  if (navigator.locks){ try{ navigator.locks.request('slukh-awake', {mode:'shared'}, () => new Promise(() => {})).catch(() => {}); }catch(e){} }
   document.addEventListener('freeze', () => { frozenAt = Date.now(); });
   document.addEventListener('resume', () => {
     if (frozenAt) toast('Chrome призупиняв Слухайко о ' + new Date(frozenAt).toLocaleTimeString('uk'));
@@ -920,7 +952,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
 
   async function removeItems(ids){
     const set = new Set(ids);
-    if (set.has(curId)){ pauseApp(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
+    if (set.has(curId)){ keepStop(); pauseApp(); audio.removeAttribute('src'); audio.load(); if(curUrl) URL.revokeObjectURL(curUrl); curUrl=null; curId=null; ls.set('cur', null); }
     for (const id of set){ try{ await store.remove(id); }catch(e){} }
     items = items.filter(i => !set.has(i.id)); persistOrder();
     const used = new Set(items.map(i => i.cover));
@@ -1214,7 +1246,6 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   // so explain the Share → Add to Home Screen path. Hidden once the app runs from the icon, or when dismissed.
   const ua = navigator.userAgent;
   const isIOS = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const isAndroid = /android/i.test(ua);
   const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   let bip = null;
   function showHint(){
