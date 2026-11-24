@@ -29,8 +29,10 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
 - **tags**: `parseTags(blob)` reads ID3v2.2–2.4 (cp1251/UTF-8 heuristics for "Latin-1" text), MP4 `ilst`
   (moov may be at the end), ID3v1 fallback. Titles equal to the file name and `JUNK_COVERS` (audio-joiner logo) are dropped. `applyTags(it, blob)` fills meta. Series = TXXX SERIES / MVNM / TIT1, ©mvn / ©grp.
 - **interruptions**: a `pause` we didn't cause (`appPause` flag, set by `pauseApp()`/`select`) marks `interrupted`;
-  the next `play` (system auto-resume or user) calls `reloadAudio(back)` — reassigns `src` and seeks. Every user resume
-  after a pause reloads too (Android Chrome sometimes resumes silently after an air-raid-alert app takes audio focus).
+  the next `play` (system auto-resume or user) calls `reloadAudio(back)` — reassigns `src` and seeks. On-screen Play
+  (`play(true)`) reloads too (Android Chrome sometimes resumes silently after an air-raid-alert app takes audio focus).
+  Headset/lock-screen Play must NOT reload: measured via adb, a reload destroys Chrome's media session for ~0.7 s.
+  `sendPosition()` runs on state changes only, not on `timeupdate`.
   Always pause through `pauseApp()`, never bare `audio.pause()`.
 - **media session**: lock-screen controls (−15 / +30 s, prev/next track, seekto).
 - **sleep timer**: `checkSleep()` compares wall clock to `sleepEnd`; called from `setInterval`,

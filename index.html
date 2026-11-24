@@ -681,25 +681,26 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     if (autoplay) play();
   }
 
-  function play(){
+  // fresh = on-screen Play: reload the file first (see "interruptions" below). Headset / lock-screen Play must not:
+  // a reload makes Chrome destroy its media session for ~0.7 s, and Android then routes buttons to another player.
+  function play(fresh){
     if(!cur()) return;
-    // Resuming after a pause: reload the file first (see "interruptions" below).
-    if (audio.paused && !audio.ended && (interrupted || playedSinceLoad)){
+    if (audio.paused && !audio.ended && (interrupted || (fresh && playedSinceLoad))){
       reloadAudio(interrupted ? 3 : (Date.now() - pausedAt > 10000 ? 2 : 0)); return;
     }
     audio.playbackRate = rate;
     const p = audio.play(); if (p && p.catch) p.catch(()=>{});
   }
   function pauseApp(){ appPause = true; audio.pause(); }
-  function togglePlay(){ if(!cur()) return; audio.paused ? play() : pauseApp(); }
+  function togglePlay(){ if(!cur()) return; audio.paused ? play(true) : pauseApp(); }
 
   // ---------- interruptions (air-raid alert apps, calls, navigation prompts) ----------
   // When another app grabs audio focus, Chrome on Android pauses the element and resumes it later — and the
   // resumed output sometimes stays silent while currentTime keeps running. Reloading the source revives it:
   // - a pause we did not ask for marks the element as interrupted;
   // - the system's auto-resume (a `play` event while interrupted) or the next tap on Play reloads the file
-  //   at the same spot, 3 s earlier. Every resume after a pause reloads too, so if the sound silently dies
-  //   with no events at all, pause → play brings it back.
+  //   at the same spot, 3 s earlier. The on-screen Play always reloads too, so if the sound silently dies
+  //   with no events at all, pause → play on the screen brings it back.
   let appPause = false, interrupted = false, reloading = false, playedSinceLoad = false, pausedAt = 0;
   function reloadAudio(back){
     const it = cur(); if (!it || !curUrl) return;
@@ -768,10 +769,13 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     updateTime();
     if (checkSleep()) return;
     if (Date.now() - lastSave > 5000) { saveNow(); }
-    if ('mediaSession' in navigator && navigator.mediaSession.setPositionState && isFinite(audio.duration)){
-      try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:rate}); }catch(e){}
-    }
   });
+  // The system extrapolates the position itself; sending it on every timeupdate floods Bluetooth (AVRCP) with updates.
+  function sendPosition(){
+    if (!('mediaSession' in navigator) || !navigator.mediaSession.setPositionState || !(audio.duration > 0) || !isFinite(audio.duration)) return;
+    try{ navigator.mediaSession.setPositionState({duration:audio.duration, position:Math.min(audio.currentTime,audio.duration), playbackRate:rate}); }catch(e){}
+  }
+  ['loadedmetadata','playing','pause','seeked','ratechange'].forEach(ev => audio.addEventListener(ev, sendPosition));
   audio.addEventListener('ended', () => {
     const it = cur(); if (it){ it.done = true; it.pos = 0; store.putMeta(it); }
     if (sleepMode === 'end'){ clearSleep(); renderList(); return; }
@@ -804,7 +808,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
   }
   if ('mediaSession' in navigator){
     const ms = navigator.mediaSession, h = (a,f)=>{ try{ ms.setActionHandler(a,f);}catch(e){} };
-    h('play', play); h('pause', pauseApp);
+    h('play', () => play()); h('pause', pauseApp);
     h('seekbackward', () => skip(-15)); h('seekforward', () => skip(30));
     h('previoustrack', () => goto(-1)); h('nexttrack', () => goto(1));
     h('seekto', e => { if (e.seekTime != null) { audio.currentTime = e.seekTime; updateTime(); } });
