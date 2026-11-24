@@ -247,6 +247,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     </ol>
     <p class="note">Плеєр запам'ятовує, де ви зупинилися в кожному файлі, і вибрану швидкість. Коли файл закінчується, сам вмикається наступний. Порядок можна змінити, перетягнувши файл за ⠿. Назву, автора, рік, обкладинку й опис плеєр бере з тегів файлу, якщо вони там є.</p>
     <p class="note"><b>Іконка на телефоні:</b> Android — «⋮» у Chrome → «Додати на головний екран» / «Встановити застосунок». iPhone — «Поділитися» в Safari → «На початковий екран» (файли в застосунку з іконки на iPhone доведеться додати заново).</p>
+    <p class="note"><b>Android: кнопки навушників.</b> Якщо після паузи кнопка вмикає іншу програму (наприклад, радіо): Налаштування → Програми → Chrome → Акумулятор → <b>Без обмежень</b>. Слухайко працює всередині Chrome, тому змінювати треба саме його. Не закривайте Слухайко зі списку останніх програм. Якщо після довгої паузи кнопка не реагує, відкрийте Слухайко — місце зупинки збережене. Коли Слухайко відкритий на екрані, після паузи кнопка може спрацювати лише за кілька секунд.</p>
   </details>
 </div>
 <dialog id="info" aria-label="Про книгу">
@@ -291,7 +292,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
 (() => {
   const $ = id => document.getElementById(id);
   const audio = $('audio');
-  const APP_VERSION = 'v6';   // keep equal to VERSION in sw.js
+  const APP_VERSION = 'v7';   // keep equal to VERSION in sw.js
   $('ver').textContent = APP_VERSION;
   const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
   const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
@@ -816,6 +817,17 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
     h('previoustrack', () => goto(-1)); h('nexttrack', () => goto(1));
     h('seekto', e => { if (e.seekTime != null) { audio.currentTime = e.seekTime; updateTime(); } });
   }
+
+  // ---------- background freezing (experiment) ----------
+  // Chrome freezes a hidden page after a few silent minutes; headset commands then queue up until it is opened again.
+  // Holding a Web Lock may exempt the page. The toast tells us whether a freeze still happened.
+  let frozenAt = 0;
+  if (navigator.locks){ try{ navigator.locks.request('slukh-awake', {mode:'shared'}, () => new Promise(() => {})).catch(() => {}); }catch(e){} }
+  document.addEventListener('freeze', () => { frozenAt = Date.now(); });
+  document.addEventListener('resume', () => {
+    if (frozenAt) toast('Chrome призупиняв Слухайко о ' + new Date(frozenAt).toLocaleTimeString('uk'));
+    frozenAt = 0;
+  });
 
   // ---------- sleep timer ----------
   // Background timers are throttled on locked phones (iOS especially), so the deadline is
