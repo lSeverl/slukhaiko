@@ -35,8 +35,8 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
   Headset/lock-screen Play must NOT reload: measured via adb, a reload destroys Chrome's media session for ~0.7 s.
   `sendPosition()` runs on state changes only, not on `timeupdate`.
   Always pause through `pauseApp()`, never bare `audio.pause()`.
-- **keep-alive** (opt-in `ls` key `keep`, Android): `userPause()` loops a near-inaudible tone (`keep`) up to 30 min so Chrome keeps
-  running the hidden page; then the headset sends PAUSE for "resume", handled in the `pause` action. Sleep timer uses plain `pauseApp()`.
+- **keep-alive** (opt-in `ls` key `keep`, Android): `userPause()` plays a near-inaudible Web Audio tone up to 30 min so Chrome keeps
+  running the hidden page. Not an `<audio>` element: that makes the session "playing" and Chrome drops the headset's PLAY. Sleep timer uses plain `pauseApp()`.
 - **media session**: lock-screen controls (−15 / +30 s, prev/next track, seekto).
 - **sleep timer**: `checkSleep()` compares wall clock to `sleepEnd`; called from `setInterval`,
   `timeupdate` and `visibilitychange` (background timers are throttled on locked phones). Mode `end` = stop after file.
