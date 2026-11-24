@@ -7,7 +7,8 @@ Deployed to GitHub Pages from `main` (origin: github.com/lSeverl/slukhaiko).
 ## Files
 - `index.html` — the whole app: CSS → markup → one IIFE script (+ small SW-registration script).
 - `sw.js` — offline cache. Navigation is network-first (index.html updates arrive without a bump);
-  everything else cache-first. Bump `VERSION` on every release anyway (README rule).
+  everything else cache-first. Bump `VERSION` on every release anyway (README rule),
+  together with `APP_VERSION` in `index.html` (shown next to the title) — keep them equal.
 - `manifest.webmanifest`, `icons/`.
 
 ## Script layout (index.html)

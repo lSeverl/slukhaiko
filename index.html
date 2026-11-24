@@ -39,6 +39,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px
 header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 h1{font-family:var(--display);font-weight:700;font-size:1.7rem;margin:0;letter-spacing:-.01em}
 h2{font-family:var(--display);font-weight:500;font-size:1.2rem;margin:0}
+.ver{font-family:var(--body);font-size:.75rem;font-weight:500;letter-spacing:0;color:var(--muted)}
 .muted{color:var(--muted)}
 .small{font-size:.82rem}
 button,select,label.btn{font:inherit;color:inherit}
@@ -161,7 +162,7 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
 
 <div class="wrap">
   <header>
-    <h1>Слухайко</h1>
+    <h1>Слухайко <small class="ver" id="ver"></small></h1>
     <span class="muted small" id="storage"></span>
   </header>
 
@@ -290,6 +291,8 @@ dialog#info::backdrop{background:rgba(0,0,0,.45)}
 (() => {
   const $ = id => document.getElementById(id);
   const audio = $('audio');
+  const APP_VERSION = 'v6';   // keep equal to VERSION in sw.js
+  $('ver').textContent = APP_VERSION;
   const RATES_MIN = 0.5, RATES_MAX = 3, STEP = 0.25;
   const PLAY = '<path d="M8 5v14l11-7z"/>', PAUSE = '<path d="M6 5h4v14H6zM14 5h4v14h-4z"/>';
   const ico = {
